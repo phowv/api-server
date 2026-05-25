@@ -1,0 +1,60 @@
+package remove
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"photo-viewer-server/internal/lib/api/response"
+	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/service"
+	"photo-viewer-server/internal/storage"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/render"
+)
+
+func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log := lg.With(
+			slog.String("op", "handlers.remove.RemovePhoto"),
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+		)
+
+		photoIdStr := chi.URLParam(r, "photo_id")
+		if photoIdStr == "" {
+			log.Info("photo id param is empty")
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("photo id is empty"))
+			return
+		}
+
+		photoId, err := strconv.Atoi(photoIdStr)
+		if err != nil {
+			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("invalid request"))
+			return
+		}
+
+		err = photoService.DeletePhoto(r.Context(), photoId)
+		if err != nil {
+			log.Error("error remove photo", sl.Err(err))
+
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, response.Error("not found"))
+				return
+			}
+
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, response.Error("internal error"))
+			return
+		}
+
+		render.JSON(w, r, response.OK())
+	}
+}
