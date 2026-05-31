@@ -75,3 +75,21 @@ func (s *Storage) DeletePhoto(ctx context.Context, id int) error {
 
 	return nil
 }
+
+func (s *Storage) UpdatePhoto(ctx context.Context, id int, fields map[string]any) error {
+  res := s.db.WithContext(ctx).Model(&entity.Photo{}).Where("photo_id = ?", id).Updates(fields)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrPhotoNotFound
+		}
+
+		return fmt.Errorf("error update photo: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrPhotoNotFound
+	}
+
+	return nil
+}

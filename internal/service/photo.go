@@ -15,7 +15,7 @@ import (
 )
 
 type PhotoMetadata struct {
-	Title string `json:"title" validate:"required"`
+	Title string `json:"title"`
 	Description string `json:"description"`
 }
 
@@ -34,6 +34,7 @@ type PhotoRepo interface {
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, id int) (*entity.Photo, error)
 	DeletePhoto(ctx context.Context, id int) error
+  UpdatePhoto(ctx context.Context, id int, fields map[string]any) error
 }
 
 type FileRepo interface {
@@ -63,6 +64,23 @@ type SavePhotoInput struct {
 	Filename string
 	Content []byte
 	ContentType string
+}
+
+func metadataToMap(m *PhotoMetadata) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]interface{})
+
+	if m.Title != "" {
+		out["title"] = m.Title
+	}
+
+	if m.Description != "" {
+		out["description"] = m.Description
+	}
+
+	return out
 }
 
 func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput) (int, error) {
@@ -191,6 +209,27 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int) error {
 	err = s.fileRepo.DeleteFile(ctx, s.bucketName, photoEntity.Filename)
 	if err != nil {
 		log.Error("failed to delete photo file", sl.Err(err))
+		return err
+	}
+
+	return nil
+}
+
+func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoId int, metadata PhotoMetadata) error {
+	log := s.log.With(
+		slog.String("op", "service.UpdatePhotoInfo"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	err := s.photoRepo.UpdatePhoto(ctx, photoId, metadataToMap(&metadata))
+
+	if err != nil {
+		if errors.Is(err, storage.ErrPhotoNotFound) {
+			log.Error("photo not found", slog.Int("photo_id", photoId))
+			return err
+		}
+
+		log.Error("failed to update photo", sl.Err(err))
 		return err
 	}
 

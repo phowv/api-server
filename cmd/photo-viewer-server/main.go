@@ -7,6 +7,7 @@ import (
 	"os"
 	"photo-viewer-server/internal/config"
 	"photo-viewer-server/internal/http-server/handlers/url/remove"
+	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
 	"photo-viewer-server/internal/http-server/handlers/url/view"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
@@ -73,6 +74,7 @@ func main() {
 	router.Get("/photos", view.ViewPhotos(log, photoService))
 	router.Get("/photo/{photo_id}", view.ViewPhoto(log, photoService))
 	router.Delete("/photo/{photo_id}", remove.RemovePhoto(log, photoService))
+	router.Patch("/photo/{photo_id}", update.UpdatePhoto(log, photoService))
 
 	log.Info("starting server", slog.String("host", cfg.Host), slog.Int("port", cfg.Port))
 
