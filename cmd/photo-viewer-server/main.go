@@ -6,11 +6,14 @@ import (
 	"net/http"
 	"os"
 	"photo-viewer-server/internal/config"
+	"photo-viewer-server/internal/http-server/handlers/auth"
 	"photo-viewer-server/internal/http-server/handlers/url/remove"
 	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
 	"photo-viewer-server/internal/http-server/handlers/url/view"
+	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
+	"photo-viewer-server/internal/lib/mail"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
@@ -54,6 +57,10 @@ func main() {
 
 	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName)
 
+	mailService := mail.NewMailService(cfg)
+
+	userService := service.NewUserService(log, &mailService, metadataStorage)
+
 	router := chi.NewRouter()
 
 	router.Use(middleware.RequestID)
@@ -64,17 +71,27 @@ func main() {
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
 			return true
 		},
-		AllowedMethods:   []string{"GET", "POST", "DELETE"},
+		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
-	router.Post("/photos", upload.UploadPhoto(log, photoService))
-	router.Get("/photos", view.ViewPhotos(log, photoService))
-	router.Get("/photo/{photo_id}", view.ViewPhoto(log, photoService))
-	router.Delete("/photo/{photo_id}", remove.RemovePhoto(log, photoService))
-	router.Patch("/photo/{photo_id}", update.UpdatePhoto(log, photoService))
+	router.Group(func(r chi.Router) {
+		r.Post("/register", auth.RegisterUser(log, userService))
+		r.Post("/login", auth.LoginUser(log, cfg.JwtSecret, userService))
+
+		r.Get("/photos", view.ViewPhotos(log, photoService))
+		r.Get("/photo/{photo_id}", view.ViewPhoto(log, photoService))
+	})
+
+	router.Group(func(r chi.Router) {
+		r.Use(jwtmiddleware.New(cfg.JwtSecret))
+
+		r.Post("/photos", upload.UploadPhoto(log, photoService))
+		r.Delete("/photo/{photo_id}", remove.RemovePhoto(log, photoService))
+		r.Patch("/photo/{photo_id}", update.UpdatePhoto(log, photoService))
+	})
 
 	log.Info("starting server", slog.String("host", cfg.Host), slog.Int("port", cfg.Port))
 

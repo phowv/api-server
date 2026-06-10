@@ -5,6 +5,7 @@ type User struct {
 	Login        				string    `gorm:"column:login"`
 	HashPassword				string		`gorm:"column:hash_password"`
 	Email								string		`gorm:"column:email"`
+	Role								string		`gorm:"column:role"`
 	Description  				string    `gorm:"column:description"`
 }
 

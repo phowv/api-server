@@ -37,8 +37,8 @@ type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (int, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, id int) (*entity.Photo, error)
-	DeletePhoto(ctx context.Context, id int) error
-  UpdatePhoto(ctx context.Context, id int, fields map[string]any) error
+	DeletePhoto(ctx context.Context, id int, ownerId int) error
+  UpdatePhoto(ctx context.Context, id int, ownerId int, fields map[string]any) error
 }
 
 type FileRepo interface {
@@ -99,7 +99,7 @@ func metadataToMap(m *PhotoMetadata) map[string]interface{} {
 	return out
 }
 
-func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput) (int, error) {
+func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, ownerId int) (int, error) {
 	log := s.log.With(
 		slog.String("op", "service.SavePhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
@@ -122,9 +122,10 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput) (int
 		Title: input.Metadata.Title,
 		Description: input.Metadata.Description,
 		Tags: input.Metadata.Tags,
-		CreatedAt: input.Metadata.CreatedAt,
+		CreatedDate: input.Metadata.CreatedAt,
 		TookAt: input.Metadata.TookAt,
 		Filename: filename,
+		OwnerId: ownerId,
 	}
 
 	photoId, err := s.photoRepo.SavePhoto(ctx, &photoEntity)
@@ -159,7 +160,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
 				Tags: photoEntity.Tags,
-				CreatedAt: photoEntity.CreatedAt,
+				CreatedAt: photoEntity.CreatedDate,
 				TookAt: photoEntity.TookAt,
 			},
 		}
@@ -199,7 +200,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithDat
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
 				Tags: photoEntity.Tags,
-				CreatedAt: photoEntity.CreatedAt,
+				CreatedAt: photoEntity.CreatedDate,
 				TookAt: photoEntity.TookAt,
 			},
 		},
@@ -208,7 +209,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithDat
 	return photoWithData, nil
 }
 
-func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int) error {
+func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int, ownerId int) error {
 	log := s.log.With(
 		slog.String("op", "service.DeletePhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
@@ -225,7 +226,11 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int) error {
 		return fmt.Errorf("error get photo: %w", err)
 	}
 
-	err = s.photoRepo.DeletePhoto(ctx, photoId)
+	if photoEntity.OwnerId != ownerId {	
+		return ErrUserInvalidAuthorization
+	}
+
+	err = s.photoRepo.DeletePhoto(ctx, photoId, ownerId)
 	if err != nil {
 		log.Error("failed to delete photo", sl.Err(err))
 		return err
@@ -240,13 +245,13 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int) error {
 	return nil
 }
 
-func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoId int, metadata PhotoMetadata) error {
+func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoId int, metadata PhotoMetadata, userId int) error {
 	log := s.log.With(
 		slog.String("op", "service.UpdatePhotoInfo"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	err := s.photoRepo.UpdatePhoto(ctx, photoId, metadataToMap(&metadata))
+	err := s.photoRepo.UpdatePhoto(ctx, photoId, userId, metadataToMap(&metadata))
 
 	if err != nil {
 		if errors.Is(err, storage.ErrPhotoNotFound) {

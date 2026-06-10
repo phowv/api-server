@@ -92,7 +92,9 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			ContentType: header.Header.Get("Content-Type"),
 		}
 
-		photoId, err := photoService.SavePhoto(r.Context(), input)
+		userId := r.Context().Value("user_id").(int)
+
+		photoId, err := photoService.SavePhoto(r.Context(), input, userId)
 		if err != nil {
 			log.Error("failed to save photo", sl.Err(err))
 

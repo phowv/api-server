@@ -40,13 +40,20 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		err = photoService.DeletePhoto(r.Context(), photoId)
+		userId := r.Context().Value("user_id").(int)
+
+		err = photoService.DeletePhoto(r.Context(), photoId, userId)
 		if err != nil {
 			log.Error("error remove photo", sl.Err(err))
 
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("not found"))
+				return
+
+			} else if errors.Is(err, service.ErrUserInvalidAuthorization) {
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("invalid authorization"))
 				return
 			}
 

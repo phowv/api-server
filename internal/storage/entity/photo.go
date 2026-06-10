@@ -12,7 +12,7 @@ type Photo struct {
 	Tags								string		`gorm:"column:tags"`
 	Filename         		string    `gorm:"column:filename"`
 	ModifiedDate 				time.Time `gorm:"column:modified_date;autoUpdateTime"`
-	CreatedAt 					time.Time `gorm:"column:created_at"`
+	CreatedDate					time.Time `gorm:"column:created_at"`
 	TookAt 							time.Time `gorm:"column:took_at"`
 }
 

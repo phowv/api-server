@@ -70,7 +70,9 @@ return func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = photoService.UpdatePhotoInfo(r.Context(), photoId, metadata)
+		userId := r.Context().Value("user_id").(int)
+
+		err = photoService.UpdatePhotoInfo(r.Context(), photoId, metadata, userId)
 
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {

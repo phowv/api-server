@@ -25,6 +25,13 @@ type Config struct {
 	StoragePort     int    `env:"MINIO_DATA_PORT" env-required:"true"`
 	StorageUser     string `env:"MINIO_USER" env-required:"true"`
 	StoragePassword string `env:"MINIO_PASSWORD" env-required:"true"`
+
+	JwtSecret				string `env:"JWT_SECRET" env-required:"true"`
+
+	SmtpHost				string `env:"SMTP_HOST" env-required:"true"`
+	SmtpUser				string `env:"SMTP_USER" env-required:"true"`
+	SmtpPassword		string `env:"SMTP_PASSWORD" env-required:"true"`
+	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"true"`
 }
 
 func MustLoad() *Config {
