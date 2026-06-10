@@ -9,6 +9,7 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
+	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
@@ -17,6 +18,9 @@ import (
 type PhotoMetadata struct {
 	Title string `json:"title"`
 	Description string `json:"description"`
+	Tags string `json:"tags"`
+	CreatedAt time.Time `json:"created_at"`
+	TookAt time.Time `json:"took_at"`
 }
 
 type PhotoInfo struct {
@@ -80,6 +84,18 @@ func metadataToMap(m *PhotoMetadata) map[string]interface{} {
 		out["description"] = m.Description
 	}
 
+	if m.Tags != "" {
+		out["tags"] = m.Tags
+	}
+	
+	if !m.CreatedAt.IsZero() {
+		out["created_at"] = m.CreatedAt
+	}
+
+	if !m.TookAt.IsZero() {
+		out["took_at"] = m.TookAt
+	}
+
 	return out
 }
 
@@ -105,6 +121,9 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput) (int
 	photoEntity := entity.Photo{
 		Title: input.Metadata.Title,
 		Description: input.Metadata.Description,
+		Tags: input.Metadata.Tags,
+		CreatedAt: input.Metadata.CreatedAt,
+		TookAt: input.Metadata.TookAt,
 		Filename: filename,
 	}
 
@@ -139,6 +158,9 @@ func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
+				Tags: photoEntity.Tags,
+				CreatedAt: photoEntity.CreatedAt,
+				TookAt: photoEntity.TookAt,
 			},
 		}
 	}
@@ -176,6 +198,9 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithDat
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
+				Tags: photoEntity.Tags,
+				CreatedAt: photoEntity.CreatedAt,
+				TookAt: photoEntity.TookAt,
 			},
 		},
 	}
