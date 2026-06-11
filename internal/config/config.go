@@ -26,7 +26,8 @@ type Config struct {
 	StorageUser     string `env:"MINIO_USER" env-required:"true"`
 	StoragePassword string `env:"MINIO_PASSWORD" env-required:"true"`
 
-	JwtSecret				string `env:"JWT_SECRET" env-required:"true"`
+	JwtAccessSecret	string `env:"JWT_ACCESS_SECRET" env-required:"true"`
+	JwtRefreshSecret string `env:"JWT_REFRESH_SECRET" env-required:"true"`
 
 	SmtpHost				string `env:"SMTP_HOST" env-required:"true"`
 	SmtpUser				string `env:"SMTP_USER" env-required:"true"`

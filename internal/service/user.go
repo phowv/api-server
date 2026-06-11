@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
 	"photo-viewer-server/internal/lib/mail"
 	"photo-viewer-server/internal/storage/entity"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -21,11 +23,17 @@ var (
 
 type UserRepo interface {
 	CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error)
-	GetUserByUuid(ctx context.Context, uui uuid.UUID) (*entity.User, error)
+	GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
   UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
+}
+
+type SessionRepo interface {
+	SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error)
+	GetSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error)
+	RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error
 }
 
 type UserData struct {
@@ -43,7 +51,8 @@ type UserAuthCredentials struct {
 type UserService struct {
 	log *slog.Logger
 	userRepo UserRepo
-	MailService *mail.MailService
+	sessionRepo SessionRepo
+	mailService *mail.MailService
 }
 
 type User struct {
@@ -53,11 +62,12 @@ type User struct {
 	Email string
 }
 
-func NewUserService(log *slog.Logger, mailService *mail.MailService, userRepo UserRepo) *UserService {
+func NewUserService(log *slog.Logger, mailService *mail.MailService, userRepo UserRepo, sessionRepo SessionRepo) *UserService {
 	return &UserService{
 		log: log,
 		userRepo: userRepo,
-		MailService: mailService,
+		sessionRepo: sessionRepo,
+		mailService: mailService,
 	}
 }
 
@@ -68,6 +78,19 @@ func hashPassword(password string) (string, error) {
 
 func comparePasswords(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
+}
+
+func hashToken(token string) (string, error) {
+	digest := sha256.Sum256([]byte(token))
+  bytes, err := bcrypt.GenerateFromPassword(digest[:], 14)
+
+	return string(bytes), err
+}
+
+func compareTokens(token, hash string) bool {
+	digest := sha256.Sum256([]byte(token))
+	err := bcrypt.CompareHashAndPassword([]byte(hash), digest[:])
 	return err == nil
 }
 
@@ -146,4 +169,63 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 		Login: user.Login,
 		Email: user.Email,
 	}, nil
+}
+
+func (s *UserService) CreateSession(ctx context.Context, userUuid uuid.UUID, token string, expiresAt time.Time) (uuid.UUID, error) {
+	hashToken, err := hashToken(token)
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to hash token: %w", err)
+	}
+
+	session := entity.Session{
+		UserUuid: userUuid,
+		ExpiresAt: expiresAt,
+		HashToken: hashToken,
+		IsRevoked: false,
+	}
+
+	sessionUuid, err := s.sessionRepo.SaveSession(ctx, &session)
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("error save session: %w", err)
+	}
+
+	return sessionUuid, nil
+}
+
+func (s *UserService) AuthenticateSession(ctx context.Context, userUuid uuid.UUID, token string) (*User, error) {
+	sessions, err := s.sessionRepo.GetSessionsByUser(ctx, userUuid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sessions: %w", err)
+	}
+
+	var foundSession *entity.Session = nil
+
+	for _, session := range sessions {	
+		if compareTokens(token, session.HashToken) {
+			foundSession = session
+			break
+		}
+	}
+
+	if foundSession == nil {
+		return nil, errors.New("session not found")
+	}
+
+	if foundSession.IsRevoked {
+		return nil, errors.New("expired token")
+	}
+
+	err = s.sessionRepo.RevokeSessionByUuid(ctx, foundSession.SessionUuid)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to revoke session: %w", err)
+	}
+
+	if foundSession.ExpiresAt.Before(time.Now()) {
+		return nil, errors.New("expired token")
+	}
+
+	return s.GetUserInfo(ctx, userUuid)
 }

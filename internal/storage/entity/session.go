@@ -1,0 +1,19 @@
+package entity
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type Session struct {
+	SessionUuid					uuid.UUID `gorm:"column:session_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
+	UserUuid						uuid.UUID `gorm:"column:user_uuid;type:uuid"`
+	HashToken						string 		`gorm:"column:token"`
+	ExpiresAt						time.Time `gorm:"column:expires_at"`
+	IsRevoked						bool 			`gorm:"column:is_revoked"`
+}
+
+func (Session) TableName() string {
+	return "sessions.sessions"	
+}

@@ -60,7 +60,7 @@ func main() {
 
 	mailService := mail.NewMailService(cfg)
 
-	userService := service.NewUserService(log, &mailService, metadataStorage)
+	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage)
 
 	router := chi.NewRouter()
 
@@ -82,17 +82,19 @@ func main() {
 		r.Get("/photos", view.ViewPhotos(log, photoService))
 		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
 		r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+
+		r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
 	})
 
 	router.Group(func(r chi.Router) {
 		r.Use(emptytokenmw.New())
 
 		r.Post("/auth/register", auth.RegisterUser(log, userService))
-		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtSecret, userService))
+		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
 	})
 
 	router.Group(func(r chi.Router) {
-		r.Use(jwtmiddleware.New(cfg.JwtSecret))
+		r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
 		r.Get("/auth/me", auth.GetMe(log, userService))
 		r.Post("/photos", upload.UploadPhoto(log, photoService))

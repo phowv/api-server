@@ -10,3 +10,8 @@ type Claims struct {
 	Role string `json:"user_role"`
 	jwt.RegisteredClaims
 }
+
+type RefreshClaims struct {
+	UserUuid uuid.UUID `json:"user_uuid"`
+	jwt.RegisteredClaims
+}

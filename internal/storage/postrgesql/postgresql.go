@@ -181,3 +181,51 @@ func (s *Storage) UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[str
 
 	return nil
 }
+
+func (s *Storage) SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error) {
+	err := s.db.WithContext(ctx).Create(refreshToken).Error
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("error persist session entity: %w", err)
+	}
+
+	return refreshToken.SessionUuid, nil
+}
+
+func (s *Storage) GetSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error) {
+	var sessions []*entity.Session
+
+	res := s.db.WithContext(ctx).Where("user_uuid = ?", user_uuid).Find(&sessions)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrSessionNotFound
+		}
+
+		return nil, fmt.Errorf("error get sessions: %w", res.Error)
+	}
+
+	if len(sessions) == 0 {
+		return nil, storage.ErrSessionNotFound
+	}
+
+	return sessions, nil
+}
+
+func (s *Storage) RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error {
+	res := s.db.WithContext(ctx).Model(&entity.Session{}).Where("session_uuid = ?", sessionUuid).Update("is_revoked", true)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrSessionNotFound
+		}
+
+		return fmt.Errorf("error get session: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrSessionNotFound
+	}
+
+	return nil
+}
