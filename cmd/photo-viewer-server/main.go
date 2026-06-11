@@ -11,6 +11,7 @@ import (
 	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
 	"photo-viewer-server/internal/http-server/handlers/url/view"
+	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
 	"photo-viewer-server/internal/lib/mail"
@@ -78,12 +79,16 @@ func main() {
 	}))
 
 	router.Group(func(r chi.Router) {
-		r.Post("/auth/register", auth.RegisterUser(log, userService))
-		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtSecret, userService))
-
 		r.Get("/photos", view.ViewPhotos(log, photoService))
 		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
 		r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+	})
+
+	router.Group(func(r chi.Router) {
+		r.Use(emptytokenmw.New())
+
+		r.Post("/auth/register", auth.RegisterUser(log, userService))
+		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtSecret, userService))
 	})
 
 	router.Group(func(r chi.Router) {
