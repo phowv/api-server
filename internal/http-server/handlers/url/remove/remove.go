@@ -8,11 +8,11 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 )
 
 func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
@@ -31,7 +31,7 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		photoId, err := strconv.Atoi(photoIdStr)
+		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
 			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
 
@@ -40,9 +40,9 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		userId := r.Context().Value("user_id").(int)
+		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
 
-		err = photoService.DeletePhoto(r.Context(), photoId, userId)
+		err = photoService.DeletePhoto(r.Context(), photoUuid, userUuid)
 		if err != nil {
 			log.Error("error remove photo", sl.Err(err))
 

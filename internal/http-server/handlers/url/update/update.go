@@ -9,17 +9,17 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type Response struct {
 	response.Response
-  PhotoId int `json:"photo_id"`
+  PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
 func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
@@ -61,7 +61,7 @@ return func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		photoId, err := strconv.Atoi(photoIdStr)
+		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
 			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
 
@@ -70,13 +70,13 @@ return func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		userId := r.Context().Value("user_id").(int)
+		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
 
-		err = photoService.UpdatePhotoInfo(r.Context(), photoId, metadata, userId)
+		err = photoService.UpdatePhotoInfo(r.Context(), photoUuid, metadata, userUuid)
 
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
-				log.Info("photo not found", slog.Int("photo_id", photoId))
+				log.Info("photo not found", slog.Any("photo_uuid", photoUuid))
 
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("photo not found"))
@@ -88,16 +88,16 @@ return func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Info("success update photo info", slog.Int("photo_id", photoId))
+		log.Info("success update photo info", slog.Any("photo_uuid", photoUuid))
 
 		render.Status(r, http.StatusOK)
-		responseOk(w, r, photoId)
+		responseOk(w, r, photoUuid)
 	}
 }
 
-func responseOk(w http.ResponseWriter, r *http.Request, photoId int) {
+func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
 		Response: response.OK(),
-		PhotoId: photoId,
+		PhotoUuid: photoUuid,
 	})
 }

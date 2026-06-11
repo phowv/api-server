@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 const (
@@ -21,7 +22,7 @@ const (
 
 type Response struct {
 	response.Response
-  PhotoId int `json:"photo_id"`
+  PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
 func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
@@ -92,9 +93,9 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			ContentType: header.Header.Get("Content-Type"),
 		}
 
-		userId := r.Context().Value("user_id").(int)
+		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
 
-		photoId, err := photoService.SavePhoto(r.Context(), input, userId)
+		photoUuid, err := photoService.SavePhoto(r.Context(), input, userUuid)
 		if err != nil {
 			log.Error("failed to save photo", sl.Err(err))
 
@@ -103,16 +104,16 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return 
 		}
 
-		log.Info("saved photo", slog.Int("photo_id", photoId))
+		log.Info("saved photo", slog.Any("photo_uuid", photoUuid))
 
 		render.Status(r, http.StatusCreated)
-		responseOk(w, r, photoId)
+		responseOk(w, r, photoUuid)
 	}
 }
 
-func responseOk(w http.ResponseWriter, r *http.Request, photoId int) {
+func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
 		Response: response.OK(),
-		PhotoId: photoId,
+		PhotoUuid: photoUuid,
 	})
 }

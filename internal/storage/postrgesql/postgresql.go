@@ -7,6 +7,7 @@ import (
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
 
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -28,20 +29,20 @@ func New(host string, port int, dbname string, user string, password string) (*S
 	return &Storage{db: db}, nil
 }
 
-func (s *Storage) SavePhoto(ctx context.Context, photo *entity.Photo) (int, error) {
+func (s *Storage) SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error) {
 	err := s.db.WithContext(ctx).Create(photo).Error
 
 	if err != nil {
-		return 0, fmt.Errorf("error persist photo entity: %w", err)
+		return uuid.Nil, fmt.Errorf("error persist photo entity: %w", err)
 	}
 
-	return photo.PhotoId, nil
+	return photo.PhotoUuid, nil
 }
 
-func (s *Storage) GetPhoto(ctx context.Context, id int) (*entity.Photo, error) {
+func (s *Storage) GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error) {
 	var photo entity.Photo
 
-	err := s.db.WithContext(ctx).First(&photo, id).Error
+	err := s.db.WithContext(ctx).First(&photo, uuid).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -66,8 +67,8 @@ func (s *Storage) GetAllPhotos(ctx context.Context) ([]entity.Photo, error) {
 	return photos, nil
 }
 
-func (s *Storage) DeletePhoto(ctx context.Context, id int, ownerId int) error {
-	err := s.db.Where("owner_id = ?", ownerId).Delete(entity.Photo{}, id).Error
+func (s *Storage) DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error {
+	err := s.db.Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid).Error
 
 	if err != nil {
 		return fmt.Errorf("error delete photo: %w", err)
@@ -76,8 +77,8 @@ func (s *Storage) DeletePhoto(ctx context.Context, id int, ownerId int) error {
 	return nil
 }
 
-func (s *Storage) UpdatePhoto(ctx context.Context, id int, ownerId int, fields map[string]any) error {
-  res := s.db.WithContext(ctx).Model(&entity.Photo{}).Where("photo_id = ?", id).Where("owner_id = ?", ownerId).Updates(fields)
+func (s *Storage) UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error {
+  res := s.db.WithContext(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -94,20 +95,20 @@ func (s *Storage) UpdatePhoto(ctx context.Context, id int, ownerId int, fields m
 	return nil
 }
 
-func (s *Storage) CreateUser(ctx context.Context, user *entity.User) (int, error) {
+func (s *Storage) CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error) {
 	err := s.db.WithContext(ctx).Create(user).Error
 
 	if err != nil {
-		return 0, fmt.Errorf("error persist user entity: %w", err)
+		return uuid.Nil, fmt.Errorf("error persist user entity: %w", err)
 	}
 
-	return user.UserId, nil
+	return user.UserUuid, nil
 }
 
-func (s *Storage) GetUserById(ctx context.Context, id int) (*entity.User, error) {
+func (s *Storage) GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error) {
 	var user entity.User
 
-	err := s.db.WithContext(ctx).First(&user, id).Error
+	err := s.db.WithContext(ctx).First(&user, uuid).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -153,8 +154,8 @@ func (s *Storage) GetUserByLogin(ctx context.Context, login string) (*entity.Use
 	return &user, nil
 }
 
-func (s *Storage) DeleteUser(ctx context.Context, id int) error {
-	err := s.db.Delete(entity.User{}, id).Error
+func (s *Storage) DeleteUser(ctx context.Context, uuid uuid.UUID)error {
+	err := s.db.Delete(entity.User{}, uuid).Error
 
 	if err != nil {
 		return fmt.Errorf("error delete user: %w", err)
@@ -163,8 +164,8 @@ func (s *Storage) DeleteUser(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *Storage) UpdateUser(ctx context.Context, id int, fields map[string]any) error {
-  res := s.db.WithContext(ctx).Model(&entity.User{}).Where("user_id = ?", id).Updates(fields)
+func (s *Storage) UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error {
+  res := s.db.WithContext(ctx).Model(&entity.User{}).Where("user_uuid = ?", uuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {

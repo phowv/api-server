@@ -41,7 +41,7 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 				return
 			}
 			
-			ctx := context.WithValue(r.Context(), "user_id", claims.UserId)
+			ctx := context.WithValue(r.Context(), "user_uuid", claims.UserUuid)
 			ctx = context.WithValue(ctx, "user_role", claims.Role)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

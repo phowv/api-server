@@ -8,6 +8,7 @@ import (
 	"photo-viewer-server/internal/lib/mail"
 	"photo-viewer-server/internal/storage/entity"
 
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -19,12 +20,12 @@ var (
 )
 
 type UserRepo interface {
-	CreateUser(ctx context.Context, user *entity.User) (int, error)
-	GetUserById(ctx context.Context, id int) (*entity.User, error)
+	CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error)
+	GetUserByUuid(ctx context.Context, uui uuid.UUID) (*entity.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
-	DeleteUser(ctx context.Context, id int) error
-  UpdateUser(ctx context.Context, id int, fields map[string]any) error
+	DeleteUser(ctx context.Context, uuid uuid.UUID) error
+  UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
 }
 
 type UserData struct {
@@ -46,7 +47,7 @@ type UserService struct {
 }
 
 type User struct {
-	UserId int
+	UserUuid uuid.UUID
 	Role string
 	Login string
 	Email string
@@ -70,14 +71,14 @@ func comparePasswords(password, hash string) bool {
 	return err == nil
 }
 
-func (u *UserService) CreateUser(ctx context.Context, data UserData) (int, error) {
+func (u *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID, error) {
 	if len(data.Password) < 8 {
-		return 0, ErrUserPasswordTooShort
+		return uuid.Nil, ErrUserPasswordTooShort
 	}
 
 	hashedPassword, err := hashPassword(data.Password)
 	if err != nil {
-		return 0, fmt.Errorf("failed to hash password: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	user := entity.User{
@@ -91,19 +92,19 @@ func (u *UserService) CreateUser(ctx context.Context, data UserData) (int, error
 	existingUser, err := u.userRepo.GetUserByEmail(ctx, data.Email)
 
 	if existingUser != nil {
-		return 0, ErrUserExists
+		return uuid.Nil, ErrUserExists
 	}
 
 	existingUser, err = u.userRepo.GetUserByLogin(ctx, data.Login)
 
 	if existingUser != nil {
-		return 0, ErrUserExists
+		return uuid.Nil, ErrUserExists
 	}
 
 	id, err := u.userRepo.CreateUser(ctx, &user)
 
 	if err != nil {
-		return 0, fmt.Errorf("failed to create user: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
 	return id, nil
@@ -125,7 +126,7 @@ func (u *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 	}
 
 	return &User{
-		UserId: user.UserId,
+		UserUuid: user.UserUuid,
 		Role: user.Role,
 		Login: user.Login,
 		Email: user.Email,

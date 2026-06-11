@@ -8,11 +8,11 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/google/uuid"
 )
 
 func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
@@ -31,7 +31,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handler
 			return
 		}
 
-		photoId, err := strconv.Atoi(photoIdStr)
+		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
 			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
 
@@ -40,10 +40,10 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handler
 			return
 		}
 
-		rawPhoto, err := photoService.GetPhoto(r.Context(), photoId)
+		rawPhoto, err := photoService.GetPhoto(r.Context(), photoUuid)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
-				log.Info("photo not found", slog.Int("photo_id", photoId))
+				log.Info("photo not found", slog.Any("photo_uuid", photoUuid))
 
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("photo not found"))
@@ -55,7 +55,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handler
 			return
 		}
 
-		log.Info("photo found", slog.Int("photo_id", photoId))
+		log.Info("photo found", slog.Any("photo_uuid", photoUuid))
 
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.WriteHeader(http.StatusOK)

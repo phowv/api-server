@@ -2,11 +2,13 @@ package entity
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Photo struct {
-	PhotoId      				int       `gorm:"column:photo_id;primaryKey"`
-	OwnerId 						int				`gorm:"column:owner_id"`
+	PhotoUuid      			uuid.UUID	`gorm:"column:photo_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
+	OwnerUuid 					uuid.UUID `gorm:"column:owner_uuid;type:uuid"`
 	Title        				string    `gorm:"column:title"`
 	Description  				string    `gorm:"column:description"`
 	Tags								string		`gorm:"column:tags"`

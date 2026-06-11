@@ -90,7 +90,7 @@ func LoginUser(lg *slog.Logger, jwtSecret string, userService *service.UserServi
 
 		expirationTime := time.Now().Add(tokenExpirationTime)
 		claims := &auth.Claims{
-			UserId: user.UserId,
+			UserUuid: user.UserUuid,
 			Role: user.Role,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(expirationTime),

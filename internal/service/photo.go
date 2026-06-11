@@ -24,7 +24,7 @@ type PhotoMetadata struct {
 }
 
 type PhotoInfo struct {
-	PhotoId int `json:"photo_id"`
+	PhotoUuid uuid.UUID `json:"photo_uuid"`
 	PhotoMetadata
 }
 
@@ -34,11 +34,11 @@ type PhotoWithData struct {
 }
 
 type PhotoRepo interface {
-	SavePhoto(ctx context.Context, photo *entity.Photo) (int, error)
+	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
-	GetPhoto(ctx context.Context, id int) (*entity.Photo, error)
-	DeletePhoto(ctx context.Context, id int, ownerId int) error
-  UpdatePhoto(ctx context.Context, id int, ownerId int, fields map[string]any) error
+	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
+	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
+  UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
 }
 
 type FileRepo interface {
@@ -99,7 +99,7 @@ func metadataToMap(m *PhotoMetadata) map[string]interface{} {
 	return out
 }
 
-func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, ownerId int) (int, error) {
+func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, ownerUuid uuid.UUID) (uuid.UUID, error) {
 	log := s.log.With(
 		slog.String("op", "service.SavePhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
@@ -113,7 +113,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 	if err != nil {
 		log.Error("failed to save photo file", sl.Err(err))
 
-		return 0, fmt.Errorf("failed to save photo file: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
 	}
 
 	log.Info("saved photo", slog.String("filename", filename))
@@ -125,17 +125,17 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		CreatedDate: input.Metadata.CreatedAt,
 		TookAt: input.Metadata.TookAt,
 		Filename: filename,
-		OwnerId: ownerId,
+		OwnerUuid: ownerUuid,
 	}
 
-	photoId, err := s.photoRepo.SavePhoto(ctx, &photoEntity)
+	photoUuid, err := s.photoRepo.SavePhoto(ctx, &photoEntity)
 
 	if err != nil {
 		log.Error("error save photo metadata", sl.Err(err))
-		return 0, fmt.Errorf("error save photo metadata: %w", err)
+		return uuid.Nil, fmt.Errorf("error save photo metadata: %w", err)
 	}
 
-	return photoId, nil
+	return photoUuid, nil
 }
 
 func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
@@ -155,7 +155,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
 
 	for i, photoEntity := range photoEnities {
 		photos[i] = PhotoInfo{
-			PhotoId: photoEntity.PhotoId,
+			PhotoUuid: photoEntity.PhotoUuid,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
@@ -169,16 +169,16 @@ func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
 	return photos, nil
 }
 
-func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithData, error) {
+func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*PhotoWithData, error) {
 	log := s.log.With(
 		slog.String("op", "service.GetPhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoId)
+	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
 	if err != nil {
 		if errors.Is(err, storage.ErrPhotoNotFound) {
-			log.Error("photo not found", slog.Int("photo_id", photoId))
+			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
 			return nil, err
 		}
 
@@ -195,7 +195,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithDat
 	photoWithData := &PhotoWithData{
 		Content: rawPhoto,
 		PhotoInfo: PhotoInfo{
-			PhotoId: photoEntity.PhotoId,
+			PhotoUuid: photoEntity.PhotoUuid,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
@@ -209,16 +209,16 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoId int) (*PhotoWithDat
 	return photoWithData, nil
 }
 
-func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int, ownerId int) error {
+func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, ownerUuid uuid.UUID) error {
 	log := s.log.With(
 		slog.String("op", "service.DeletePhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoId)
+	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
 	if err != nil {
 		if errors.Is(err, storage.ErrPhotoNotFound) {
-			log.Error("photo not found", slog.Int("photo_id", photoId))
+			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
 			return err
 		}
 
@@ -226,11 +226,11 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int, ownerId int
 		return fmt.Errorf("error get photo: %w", err)
 	}
 
-	if photoEntity.OwnerId != ownerId {	
+	if photoEntity.OwnerUuid != ownerUuid {	
 		return ErrUserInvalidAuthorization
 	}
 
-	err = s.photoRepo.DeletePhoto(ctx, photoId, ownerId)
+	err = s.photoRepo.DeletePhoto(ctx, photoUuid, ownerUuid)
 	if err != nil {
 		log.Error("failed to delete photo", sl.Err(err))
 		return err
@@ -245,17 +245,17 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoId int, ownerId int
 	return nil
 }
 
-func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoId int, metadata PhotoMetadata, userId int) error {
+func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID, metadata PhotoMetadata, userUuid uuid.UUID) error {
 	log := s.log.With(
 		slog.String("op", "service.UpdatePhotoInfo"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	err := s.photoRepo.UpdatePhoto(ctx, photoId, userId, metadataToMap(&metadata))
+	err := s.photoRepo.UpdatePhoto(ctx, photoUuid, userUuid, metadataToMap(&metadata))
 
 	if err != nil {
 		if errors.Is(err, storage.ErrPhotoNotFound) {
-			log.Error("photo not found", slog.Int("photo_id", photoId))
+			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
 			return err
 		}
 
