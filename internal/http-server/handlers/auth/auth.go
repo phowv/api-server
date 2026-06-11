@@ -14,9 +14,15 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 const tokenExpirationTime = 24 * time.Hour
+
+type userInfoResponse struct {
+	Login string `json:"user_login"`
+	Email string `json:"user_email"`
+}
 
 func RegisterUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +114,35 @@ func LoginUser(lg *slog.Logger, jwtSecret string, userService *service.UserServi
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{
 			"token": tokenString,
+		})
+	}
+}
+
+func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log := lg.With(
+			slog.String("op", "handlers.auth.GetMe"),
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+		)
+
+		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
+
+		log.Info("get user info", slog.Any("user_uuid", userUuid))
+
+		user, err := userService.GetUserInfo(r.Context(), userUuid)
+
+		if err != nil {
+			log.Error("failed to get user info", sl.Err(err))
+
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, response.Error("failed to get user info"))
+			return
+		}
+
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, userInfoResponse{
+			Login: user.Login,
+			Email: user.Email,
 		})
 	}
 }

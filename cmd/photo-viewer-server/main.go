@@ -78,8 +78,8 @@ func main() {
 	}))
 
 	router.Group(func(r chi.Router) {
-		r.Post("/register", auth.RegisterUser(log, userService))
-		r.Post("/login", auth.LoginUser(log, cfg.JwtSecret, userService))
+		r.Post("/auth/register", auth.RegisterUser(log, userService))
+		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtSecret, userService))
 
 		r.Get("/photos", view.ViewPhotos(log, photoService))
 		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
@@ -89,6 +89,7 @@ func main() {
 	router.Group(func(r chi.Router) {
 		r.Use(jwtmiddleware.New(cfg.JwtSecret))
 
+		r.Get("/auth/me", auth.GetMe(log, userService))
 		r.Post("/photos", upload.UploadPhoto(log, photoService))
 		r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 		r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))

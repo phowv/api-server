@@ -71,7 +71,7 @@ func comparePasswords(password, hash string) bool {
 	return err == nil
 }
 
-func (u *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID, error) {
+func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID, error) {
 	if len(data.Password) < 8 {
 		return uuid.Nil, ErrUserPasswordTooShort
 	}
@@ -89,19 +89,19 @@ func (u *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		HashPassword: hashedPassword,
 	}
 
-	existingUser, err := u.userRepo.GetUserByEmail(ctx, data.Email)
+	existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
 
 	if existingUser != nil {
 		return uuid.Nil, ErrUserExists
 	}
 
-	existingUser, err = u.userRepo.GetUserByLogin(ctx, data.Login)
+	existingUser, err = s.userRepo.GetUserByLogin(ctx, data.Login)
 
 	if existingUser != nil {
 		return uuid.Nil, ErrUserExists
 	}
 
-	id, err := u.userRepo.CreateUser(ctx, &user)
+	id, err := s.userRepo.CreateUser(ctx, &user)
 
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
@@ -110,12 +110,12 @@ func (u *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 	return id, nil
 }
 
-func (u *UserService) AuthenticateUser(ctx context.Context, userCredentials UserAuthCredentials) (*User, error) {
+func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials UserAuthCredentials) (*User, error) {
 	if len(userCredentials.Password) < 8 {
 		return nil, ErrUserInvalidAuthentication
 	}
 
-	user, err := u.userRepo.GetUserByLogin(ctx, userCredentials.Login)
+	user, err := s.userRepo.GetUserByLogin(ctx, userCredentials.Login)
 
 	if err != nil {
 		return nil, fmt.Errorf("error get user: %w", err)
@@ -123,6 +123,21 @@ func (u *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 
 	if !comparePasswords(userCredentials.Password, user.HashPassword) {
 		return nil, ErrUserInvalidAuthentication
+	}
+
+	return &User{
+		UserUuid: user.UserUuid,
+		Role: user.Role,
+		Login: user.Login,
+		Email: user.Email,
+	}, nil
+}
+
+func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*User, error) {
+	user, err := s.userRepo.GetUserByUuid(ctx, userUuid)
+
+	if err != nil {
+		return nil, fmt.Errorf("error get user: %w", err)
 	}
 
 	return &User{
