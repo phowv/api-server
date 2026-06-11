@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName)
+	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName, metadataStorage)
 
 	mailService := mail.NewMailService(cfg)
 
@@ -82,15 +82,16 @@ func main() {
 		r.Post("/login", auth.LoginUser(log, cfg.JwtSecret, userService))
 
 		r.Get("/photos", view.ViewPhotos(log, photoService))
-		r.Get("/photo/{photo_id}", view.ViewPhoto(log, photoService))
+		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
+		r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 	})
 
 	router.Group(func(r chi.Router) {
 		r.Use(jwtmiddleware.New(cfg.JwtSecret))
 
 		r.Post("/photos", upload.UploadPhoto(log, photoService))
-		r.Delete("/photo/{photo_id}", remove.RemovePhoto(log, photoService))
-		r.Patch("/photo/{photo_id}", update.UpdatePhoto(log, photoService))
+		r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
+		r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
 	})
 
 	log.Info("starting server", slog.String("host", cfg.Host), slog.Int("port", cfg.Port))

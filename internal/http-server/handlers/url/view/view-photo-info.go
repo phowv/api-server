@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
-	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.view.ViewPhotos"),
@@ -56,12 +55,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handler
 		}
 
 		log.Info("photo found", slog.Any("photo_uuid", photoUuid))
-
-		w.Header().Set("Content-Type", "image/jpeg")
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(rawPhoto.Content)
-		if err != nil {
-			log.Error("failed to write photo content", sl.Err(err))
-		}
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, rawPhoto.PhotoInfo)
 	}
 }

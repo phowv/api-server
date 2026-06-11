@@ -52,7 +52,7 @@ return func(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		photoIdStr := chi.URLParam(r, "photo_id")
+		photoIdStr := chi.URLParam(r, "photo_uuid")
 		if photoIdStr == "" {
 			log.Info("photo id param is empty")
 

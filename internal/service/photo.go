@@ -25,6 +25,7 @@ type PhotoMetadata struct {
 
 type PhotoInfo struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
+	OwnerLogin string `json:"owner_login"`
 	PhotoMetadata
 }
 
@@ -52,14 +53,16 @@ type PhotoService struct {
 	photoRepo PhotoRepo
 	fileRepo FileRepo
 	bucketName string
+	userRepo UserRepo
 }
 
-func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string) *PhotoService {
+func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo) *PhotoService {
 	return &PhotoService{
 		log: log,
 		photoRepo: photoRepo,
 		fileRepo: fileRepo,
 		bucketName: bucketName,
+		userRepo: userRepo,
 	}
 }
 
@@ -154,8 +157,15 @@ func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
 	photos := make([]PhotoInfo, len(photoEnities))
 
 	for i, photoEntity := range photoEnities {
+		user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
+		if err != nil {
+			log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+			continue
+		}
+
 		photos[i] = PhotoInfo{
 			PhotoUuid: photoEntity.PhotoUuid,
+			OwnerLogin: user.Login,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
@@ -186,6 +196,12 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*Phot
 		return nil, fmt.Errorf("error get photo: %w", err)
 	}
 
+	user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
+	if err != nil {
+		log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+		return nil, err
+	}
+
 	rawPhoto, err := s.fileRepo.GetFile(ctx, s.bucketName, photoEntity.Filename)
 	if err != nil {
 		log.Error("error get photo file", sl.Err(err), slog.String("filename", photoEntity.Filename))
@@ -196,6 +212,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*Phot
 		Content: rawPhoto,
 		PhotoInfo: PhotoInfo{
 			PhotoUuid: photoEntity.PhotoUuid,
+			OwnerLogin: user.Login,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,

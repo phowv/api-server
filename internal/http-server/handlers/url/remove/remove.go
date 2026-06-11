@@ -22,7 +22,7 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		photoIdStr := chi.URLParam(r, "photo_id")
+		photoIdStr := chi.URLParam(r, "photo_uuid")
 		if photoIdStr == "" {
 			log.Info("photo id param is empty")
 
