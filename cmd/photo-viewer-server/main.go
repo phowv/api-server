@@ -14,11 +14,14 @@ import (
 	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
+	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
 	"photo-viewer-server/internal/lib/mail"
+	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -62,11 +65,20 @@ func main() {
 
 	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage)
 
+	rateLimits := map[string]ratelimitmw.RateLimit{
+		"/auth/login": {Limit: 5, Window: time.Minute},
+		"/auth/register": {Limit: 5, Window: time.Minute},
+		"/auth/refresh": {Limit: 5, Window: time.Minute},
+	}
+
+	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
+
 	router := chi.NewRouter()
 
 	router.Use(middleware.RequestID)
 	router.Use(mwlogger.New(log))
 	router.Use(middleware.Recoverer)
+	router.Use(middleware.RealIP)
 	router.Use(middleware.URLFormat)
 	router.Use(cors.Handler(cors.Options{
 		AllowOriginFunc: func(r *http.Request, origin string) bool {
@@ -86,6 +98,7 @@ func main() {
 
 	router.Group(func(r chi.Router) {
 		r.Use(emptytokenmw.New())
+		r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
 		r.Post("/auth/register", auth.RegisterUser(log, userService))
 		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))

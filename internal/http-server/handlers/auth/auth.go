@@ -93,6 +93,9 @@ func LoginUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret string,
 
 		if err != nil {
 			log.Error("failed to authenticate user", sl.Err(err))
+
+			time.Sleep(500 * time.Millisecond)
+
 			http.Error(w, "invalid credentials", http.StatusForbidden)	
 			return
 		}
