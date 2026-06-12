@@ -82,8 +82,6 @@ func main() {
 		r.Get("/photos", view.ViewPhotos(log, photoService))
 		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
 		r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
-
-		r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
 	})
 
 	router.Group(func(r chi.Router) {
@@ -91,6 +89,7 @@ func main() {
 
 		r.Post("/auth/register", auth.RegisterUser(log, userService))
 		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
+		r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
 	})
 
 	router.Group(func(r chi.Router) {

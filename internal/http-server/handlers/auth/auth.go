@@ -11,7 +11,6 @@ import (
 	"photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -146,48 +145,6 @@ func RefreshUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret strin
 			slog.String("op", "handlers.auth.RefreshUser"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
-	
-		authHeader := r.Header.Get("Authorization")
-
-		if authHeader == "" {
-			render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("token is empty"))
-			return
-		}
-
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid header format"))
-			return
-		}
-
-		tokenString := parts[1]
-		claims := &auth.Claims{}
-
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtAccessSecret), nil
-		})
-
-		if err != nil {
-			log.Debug("failed to parse accsess token", sl.Err(err))
-
-	    render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid token"))
-			return 
-		}
-
-		if token.Valid {
-			log.Debug("token is valid yet")
-
-		   render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("token is valid yet"))
-			return
-		}
-
-		userUuid := claims.UserUuid
-
-		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
 
 		cookie, err := r.Cookie("refresh_token")
 		if err != nil {
@@ -214,7 +171,11 @@ func RefreshUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret strin
 			render.JSON(w, r, response.Error("invalid token"))
 			return 
 		}
+
+		userUuid := refreshClaims.UserUuid
 		
+		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
+
 		user, err := userService.AuthenticateSession(r.Context(), userUuid, refreshTokenString)
 		if err != nil {
 			log.Error("failed to authenticate session", sl.Err(err))

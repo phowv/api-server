@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
@@ -192,10 +193,11 @@ func (s *Storage) SaveSession(ctx context.Context, refreshToken *entity.Session)
 	return refreshToken.SessionUuid, nil
 }
 
-func (s *Storage) GetSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error) {
+func (s *Storage) GetValidSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error) {
 	var sessions []*entity.Session
 
-	res := s.db.WithContext(ctx).Where("user_uuid = ?", user_uuid).Find(&sessions)
+	now := time.Now()
+	res := s.db.WithContext(ctx).Where("user_uuid = ?", user_uuid).Where("is_revoked = FALSE").Where("expires_at > ?", now).Find(&sessions)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {

@@ -32,7 +32,7 @@ type UserRepo interface {
 
 type SessionRepo interface {
 	SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error)
-	GetSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error)
+	GetValidSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error)
 	RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error
 }
 
@@ -195,7 +195,7 @@ func (s *UserService) CreateSession(ctx context.Context, userUuid uuid.UUID, tok
 }
 
 func (s *UserService) AuthenticateSession(ctx context.Context, userUuid uuid.UUID, token string) (*User, error) {
-	sessions, err := s.sessionRepo.GetSessionsByUser(ctx, userUuid)
+	sessions, err := s.sessionRepo.GetValidSessionsByUser(ctx, userUuid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sessions: %w", err)
 	}
