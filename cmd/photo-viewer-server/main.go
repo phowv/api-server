@@ -7,6 +7,7 @@ import (
 	"os"
 	"photo-viewer-server/internal/config"
 	"photo-viewer-server/internal/http-server/handlers/auth"
+	"photo-viewer-server/internal/http-server/handlers/url/healthcheck"
 	"photo-viewer-server/internal/http-server/handlers/url/remove"
 	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
@@ -65,10 +66,12 @@ func main() {
 
 	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage)
 
+	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
+
 	rateLimits := map[string]ratelimitmw.RateLimit{
-		"/auth/login": {Limit: 5, Window: time.Minute},
-		"/auth/register": {Limit: 5, Window: time.Minute},
-		"/auth/refresh": {Limit: 5, Window: time.Minute},
+		"/api/v1/auth/login": {Limit: 5, Window: time.Minute},
+		"/api/v1/auth/register": {Limit: 5, Window: time.Minute},
+		"/api/v1/auth/refresh": {Limit: 5, Window: time.Minute},
 	}
 
 	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
@@ -90,28 +93,31 @@ func main() {
 		MaxAge:           300,
 	}))
 
-	router.Group(func(r chi.Router) {
-		r.Get("/photos", view.ViewPhotos(log, photoService))
-		r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
-		r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
-	})
+	router.Route("/api/v1", func(apiv1Router chi.Router) {
+		apiv1Router.Group(func(r chi.Router) {
+			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
+			r.Get("/photos", view.ViewPhotos(log, photoService))
+			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
+			r.Get("/api/v1/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+		})
 
-	router.Group(func(r chi.Router) {
-		r.Use(emptytokenmw.New())
-		r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
+		apiv1Router.Group(func(r chi.Router) {
+			r.Use(emptytokenmw.New())
+			r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
-		r.Post("/auth/register", auth.RegisterUser(log, userService))
-		r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
-		r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
-	})
+			r.Post("/auth/register", auth.RegisterUser(log, userService))
+			r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
+			r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
+		})
 
-	router.Group(func(r chi.Router) {
-		r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
+		apiv1Router.Group(func(r chi.Router) {
+			r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
-		r.Get("/auth/me", auth.GetMe(log, userService))
-		r.Post("/photos", upload.UploadPhoto(log, photoService))
-		r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
-		r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
+			r.Get("/auth/me", auth.GetMe(log, userService))
+			r.Post("/photos", upload.UploadPhoto(log, photoService))
+			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
+			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
+		})
 	})
 
 	log.Info("starting server", slog.String("host", cfg.Host), slog.Int("port", cfg.Port))

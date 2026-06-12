@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"time"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -97,4 +98,15 @@ func (s *FileStorage) DeleteFile(ctx context.Context, bucketName string, objectN
 	}
 
 	return s.cl.RemoveObject(ctx, bucketName, objectName, minio.RemoveObjectOptions{})
+}
+
+func (fs *FileStorage) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 2 * time.Second)
+	defer cancel()
+	_, err := fs.cl.ListBuckets(ctx)
+	return err
+}
+
+func (fs *FileStorage) Name() string {
+	return "minio"
 }

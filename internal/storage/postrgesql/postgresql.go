@@ -231,3 +231,18 @@ func (s *Storage) RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID
 
 	return nil
 }
+
+func (s *Storage) Ping(ctx context.Context) error {
+	db, err := s.db.DB()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 2 * time.Second)
+	defer cancel()
+	return db.PingContext(ctx)
+}
+
+func (s *Storage) Name() string {
+	return "postgres"
+}
