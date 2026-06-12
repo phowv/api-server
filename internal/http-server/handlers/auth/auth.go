@@ -10,6 +10,7 @@ import (
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/random"
 	"photo-viewer-server/internal/service"
 	"time"
 
@@ -94,7 +95,11 @@ func LoginUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret string,
 		if err != nil {
 			log.Error("failed to authenticate user", sl.Err(err))
 
-			time.Sleep(500 * time.Millisecond)
+			duration, err := random.CryptoRandInt64(100, 1500)
+			if err != nil {
+				duration = 750
+			}
+			time.Sleep(time.Duration(duration) * time.Millisecond)
 
 			http.Error(w, "invalid credentials", http.StatusForbidden)	
 			return

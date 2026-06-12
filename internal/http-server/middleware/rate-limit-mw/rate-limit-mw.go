@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
+	"photo-viewer-server/internal/lib/random"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -49,6 +50,12 @@ func New(lg *slog.Logger, limiter RateLimiter, limits map[string]RateLimit) func
 
 				if !limiter.Allow(key, limit.Limit, limit.Window) {
 					log.Error("too many requests", slog.String("key", key))
+
+					duration, err := random.CryptoRandInt64(100, 1500)
+					if err != nil {
+						duration = 750
+					}
+					time.Sleep(time.Duration(duration) * time.Millisecond)
 
 					render.Status(r, http.StatusTooManyRequests)
 					render.JSON(w, r, response.Error("too many requests"))
