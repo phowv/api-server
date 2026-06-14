@@ -32,7 +32,7 @@ type UserRepo interface {
 
 type SessionRepo interface {
 	SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error)
-	GetValidSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error)
+	GetValidSessionByUuid(ctx context.Context, session uuid.UUID) (*entity.Session, error)
 	RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error
 }
 
@@ -171,59 +171,47 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 	}, nil
 }
 
-func (s *UserService) CreateSession(ctx context.Context, userUuid uuid.UUID, token string, expiresAt time.Time) (uuid.UUID, error) {
+func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string, expiresAt time.Time) error {
 	hashToken, err := hashToken(token)
 
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to hash token: %w", err)
+		return fmt.Errorf("failed to hash token: %w", err)
 	}
 
 	session := entity.Session{
+		SessionUuid: sessionUuid,
 		UserUuid: userUuid,
 		ExpiresAt: expiresAt,
 		HashToken: hashToken,
 		IsRevoked: false,
 	}
 
-	sessionUuid, err := s.sessionRepo.SaveSession(ctx, &session)
+	_, err = s.sessionRepo.SaveSession(ctx, &session)
 
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("error save session: %w", err)
+		return fmt.Errorf("error save session: %w", err)
 	}
 
-	return sessionUuid, nil
+	return nil
 }
 
-func (s *UserService) AuthenticateSession(ctx context.Context, userUuid uuid.UUID, token string) (*User, error) {
-	sessions, err := s.sessionRepo.GetValidSessionsByUser(ctx, userUuid)
+func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
+	session, err := s.sessionRepo.GetValidSessionByUuid(ctx, sessionUuid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get sessions: %w", err)
+		return nil, fmt.Errorf("failed to get session: %w", err)
 	}
 
-	var foundSession *entity.Session = nil
-
-	for _, session := range sessions {	
-		if compareTokens(token, session.HashToken) {
-			foundSession = session
-			break
-		}
-	}
-
-	if foundSession == nil {
-		return nil, errors.New("session not found")
-	}
-
-	if foundSession.IsRevoked {
+	if session.IsRevoked || !compareTokens(token, session.HashToken) {
 		return nil, errors.New("expired token")
 	}
 
-	err = s.sessionRepo.RevokeSessionByUuid(ctx, foundSession.SessionUuid)
+	err = s.sessionRepo.RevokeSessionByUuid(ctx, sessionUuid)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to revoke session: %w", err)
 	}
 
-	if foundSession.ExpiresAt.Before(time.Now()) {
+	if session.ExpiresAt.Before(time.Now()) {
 		return nil, errors.New("expired token")
 	}
 

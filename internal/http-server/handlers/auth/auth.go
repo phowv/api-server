@@ -20,8 +20,8 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenExpirationTime = 15 * time.Minute
-const refreshTokenExpirationTime = 30 * 24 * time.Hour
+const accessTokenExpirationTime = 1 * time.Minute
+const refreshTokenExpirationTime = 3 * time.Hour
 
 type userInfoResponse struct {
 	Login string `json:"user_login"`
@@ -72,7 +72,7 @@ func RegisterUser(lg *slog.Logger, userService *service.UserService) http.Handle
 	}
 }
 
-func LoginUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService) http.HandlerFunc {
+func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.LoginUser"),
@@ -105,7 +105,7 @@ func LoginUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret string,
 			return
 		}
 
-	  tokens, err := createJwtTokens(r.Context(), userService, user, jwtAccessSecret, jwtRefreshSecret)
+	  tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
 			
@@ -147,7 +147,7 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	}
 }
 
-func RefreshUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService) http.HandlerFunc {
+func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.RefreshUser"),
@@ -180,11 +180,12 @@ func RefreshUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret strin
 			return 
 		}
 
+		SessionUuid := refreshClaims.SessionUuid
 		userUuid := refreshClaims.UserUuid
 		
 		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
 
-		user, err := userService.AuthenticateSession(r.Context(), userUuid, refreshTokenString)
+		user, err := userService.AuthenticateSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
 		if err != nil {
 			log.Error("failed to authenticate session", sl.Err(err))
 
@@ -192,8 +193,9 @@ func RefreshUser(lg *slog.Logger, jwtAccessSecret string, jwtRefreshSecret strin
 			render.JSON(w, r, response.Error("invalid token"))
 			return 
 		}
+		log.Debug("success authenticate user session")
 
-		tokens, err := createJwtTokens(r.Context(), userService, user, jwtAccessSecret, jwtRefreshSecret)	
+		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
 			
@@ -211,7 +213,9 @@ type createJwtTokensResult struct {
 	refreshCookie *http.Cookie
 }
 
-func createJwtTokens(ctx context.Context, userService *service.UserService, user *service.User, jwtAccessSecret, jwtRefreshSecret string) (*createJwtTokensResult, error) {
+func createJwtTokens(
+	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, isDevEnv bool,
+) (*createJwtTokensResult, error) {
 	expirationTime := time.Now().Add(accessTokenExpirationTime)
 	claims := &auth.Claims{
 		UserUuid: user.UserUuid,
@@ -227,9 +231,12 @@ func createJwtTokens(ctx context.Context, userService *service.UserService, user
 		return nil, fmt.Errorf("failed to create string access token: %w", err)
 	}
 
+	sessionUuid := uuid.New()
+
 	refreshExpirarionTime := time.Now().Add(refreshTokenExpirationTime)
 	refreshClaims := &auth.RefreshClaims{
 		UserUuid: user.UserUuid,
+		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpirarionTime),
 		},
@@ -240,20 +247,25 @@ func createJwtTokens(ctx context.Context, userService *service.UserService, user
 		return nil, fmt.Errorf("failed to create string refresh token: %w", err)
 	}
 
-	_, err = userService.CreateSession(ctx, user.UserUuid, refreshTokenString, refreshExpirarionTime)
+	err = userService.CreateSession(ctx, sessionUuid, user.UserUuid, refreshTokenString, refreshExpirarionTime)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 
+	sameSite := http.SameSiteStrictMode
+	if isDevEnv {
+		sameSite = http.SameSiteNoneMode
+	}
+
 	cookie := &http.Cookie{
 		Name: "refresh_token",
 		Value: refreshTokenString,
-		Path: "/auth/refresh",
+		Path: apiPrefix + "/auth/refresh",
 		HttpOnly: true,
 		Secure: true,
 		Expires: refreshExpirarionTime,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: sameSite,
 	}
 
 	return &createJwtTokensResult{

@@ -7,7 +7,7 @@ import (
 )
 
 type Session struct {
-	SessionUuid					uuid.UUID `gorm:"column:session_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
+	SessionUuid					uuid.UUID `gorm:"column:session_uuid;primaryKey;type:uuid"`
 	UserUuid						uuid.UUID `gorm:"column:user_uuid;type:uuid"`
 	HashToken						string 		`gorm:"column:token"`
 	ExpiresAt						time.Time `gorm:"column:expires_at"`

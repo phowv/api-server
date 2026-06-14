@@ -13,5 +13,6 @@ type Claims struct {
 
 type RefreshClaims struct {
 	UserUuid uuid.UUID `json:"user_uuid"`
+	SessionUuid uuid.UUID `json:"session_uuid"`
 	jwt.RegisteredClaims
 }

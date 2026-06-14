@@ -37,13 +37,16 @@ const (
 func main() {
 	cfg := config.MustLoad()
 
+	isDevEnv := cfg.AppEnv == appEnvDev
+
 	log := setupLogger(cfg.AppEnv)
 
 	log.Info("photo viewer server started", slog.String("env", cfg.AppEnv))
 	log.Debug("debug messages are enabled")
 	log.Debug("storage configuration",
 		slog.String("db_host", cfg.DatabaseHost), slog.Int("db_port", cfg.DatabasePort),
-		slog.String("storage_host", cfg.StorageHost), slog.Int("storage_port", cfg.StoragePort))
+		slog.String("storage_host", cfg.StorageHost), slog.Int("storage_port", cfg.StoragePort),
+	)
 
 	metadataStorage, err := postrgesql.New(
 		cfg.DatabaseHost, cfg.DatabasePort, cfg.DatabaseName, cfg.DatabaseUser, cfg.DatabasePassword,
@@ -68,10 +71,15 @@ func main() {
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
+	authRateLimit := 5
+	if isDevEnv {
+		authRateLimit = 100
+	}
+
 	rateLimits := map[string]ratelimitmw.RateLimit{
-		"/api/v1/auth/login": {Limit: 5, Window: time.Minute},
-		"/api/v1/auth/register": {Limit: 5, Window: time.Minute},
-		"/api/v1/auth/refresh": {Limit: 5, Window: time.Minute},
+		"/api/v1/auth/login": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/register": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/refresh": {Limit: authRateLimit, Window: time.Minute},
 	}
 
 	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
@@ -102,12 +110,12 @@ func main() {
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
-			r.Use(emptytokenmw.New())
+			r.Use(emptytokenmw.New(cfg.JwtAccessSecret))
 			r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
 			r.Post("/auth/register", auth.RegisterUser(log, userService))
-			r.Post("/auth/login", auth.LoginUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
-			r.Post("/auth/refresh", auth.RefreshUser(log, cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService))
+			r.Post("/auth/login", auth.LoginUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
+			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

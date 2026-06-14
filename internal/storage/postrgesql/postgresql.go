@@ -193,11 +193,11 @@ func (s *Storage) SaveSession(ctx context.Context, refreshToken *entity.Session)
 	return refreshToken.SessionUuid, nil
 }
 
-func (s *Storage) GetValidSessionsByUser(ctx context.Context, user_uuid uuid.UUID) ([]*entity.Session, error) {
-	var sessions []*entity.Session
+func (s *Storage) GetValidSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) (*entity.Session, error) {
+	var session entity.Session
 
 	now := time.Now()
-	res := s.db.WithContext(ctx).Where("user_uuid = ?", user_uuid).Where("is_revoked = FALSE").Where("expires_at > ?", now).Find(&sessions)
+	res := s.db.WithContext(ctx).Where("session_uuid = ?", sessionUuid).Where("is_revoked = FALSE").Where("expires_at > ?", now).First(&session)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -207,11 +207,7 @@ func (s *Storage) GetValidSessionsByUser(ctx context.Context, user_uuid uuid.UUI
 		return nil, fmt.Errorf("error get sessions: %w", res.Error)
 	}
 
-	if len(sessions) == 0 {
-		return nil, storage.ErrSessionNotFound
-	}
-
-	return sessions, nil
+	return &session, nil
 }
 
 func (s *Storage) RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error {
