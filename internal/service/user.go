@@ -110,6 +110,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		Role: "user",
 		Description: data.Description,
 		HashPassword: hashedPassword,
+		CreateDate: time.Now(),
 	}
 
 	existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)

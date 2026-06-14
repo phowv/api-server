@@ -1,6 +1,10 @@
 package entity
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type User struct {
 	UserUuid     				uuid.UUID `gorm:"column:user_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
@@ -9,6 +13,7 @@ type User struct {
 	Email								string		`gorm:"column:email"`
 	Role								string		`gorm:"column:role"`
 	Description  				string    `gorm:"column:description"`
+	CreateDate					time.Time `gorm:"column:created_at"`
 }
 
 func (User) TableName() string {
