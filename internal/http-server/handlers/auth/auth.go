@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenExpirationTime = 1 * time.Minute
+const accessTokenExpirationTime = 15 * time.Minute
 const refreshTokenExpirationTime = 3 * time.Hour
 
 type userInfoResponse struct {

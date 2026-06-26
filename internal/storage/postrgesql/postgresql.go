@@ -68,6 +68,18 @@ func (s *Storage) GetAllPhotos(ctx context.Context) ([]entity.Photo, error) {
 	return photos, nil
 }
 
+func (s *Storage) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
+	var photos []entity.Photo
+
+	err := s.db.Where("owner_uuid = ?", ownerUuid).Find(&photos).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get photos by owner: %w", err)
+	}
+
+	return photos, nil
+}
+
 func (s *Storage) DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error {
 	err := s.db.Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid).Error
 

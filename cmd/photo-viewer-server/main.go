@@ -106,7 +106,7 @@ func main() {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
 			r.Get("/photos", view.ViewPhotos(log, photoService))
 			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
-			r.Get("/api/v1/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

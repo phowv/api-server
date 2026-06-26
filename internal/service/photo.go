@@ -37,6 +37,7 @@ type PhotoWithData struct {
 type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
+  GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
 	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
   UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
@@ -141,13 +142,34 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 	return photoUuid, nil
 }
 
-func (s *PhotoService) GetPhotos(ctx context.Context) ([]PhotoInfo, error) {
+func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]PhotoInfo, error) {
 	log := s.log.With(
 		slog.String("op", "service.GetPhotos"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	photoEnities, err := s.photoRepo.GetAllPhotos(ctx)
+	var photoEnities []entity.Photo
+	var err error
+
+	if ownerLogin == "" {
+		photoEnities, err = s.photoRepo.GetAllPhotos(ctx)
+
+	} else {
+		user, err := s.userRepo.GetUserByLogin(ctx, ownerLogin)
+		if err != nil {
+			if errors.Is(err, storage.ErrUserNotFound) {
+				log.Error("owner not found", sl.Err(err))
+
+				return nil, err
+			}
+			log.Error("failed to get owner for photos", sl.Err(err))
+
+			return nil, fmt.Errorf("failed to get all photos: %w", err)
+		}
+
+		photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
+	}
+
 	if err != nil {
 		log.Error("failed to get all photos", sl.Err(err))
 

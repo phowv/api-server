@@ -1,11 +1,13 @@
 package view
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
+	"photo-viewer-server/internal/storage"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
@@ -23,8 +25,16 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		photos, err := photoService.GetPhotos(r.Context())
+		ownerLogin := r.URL.Query().Get("owner_login")
+
+		photos, err := photoService.GetPhotos(r.Context(), ownerLogin)
 		if err != nil {
+			if errors.Is(err, storage.ErrUserNotFound) {
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, response.Error("owner not found"))
+				return
+			}
+
 			log.Error("error get photos", sl.Err(err))
 			
 			render.Status(r, http.StatusInternalServerError)
