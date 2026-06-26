@@ -49,21 +49,27 @@ type FileRepo interface {
 	DeleteFile(ctx context.Context, bucketName string, objectName string) error
 }
 
+type ImageProcessor interface {
+  ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
+}
+
 type PhotoService struct {
 	log *slog.Logger
 	photoRepo PhotoRepo
 	fileRepo FileRepo
 	bucketName string
 	userRepo UserRepo
+	imageProcessor ImageProcessor
 }
 
-func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo) *PhotoService {
+func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo, imageProcessor ImageProcessor) *PhotoService {
 	return &PhotoService{
 		log: log,
 		photoRepo: photoRepo,
 		fileRepo: fileRepo,
 		bucketName: bucketName,
 		userRepo: userRepo,
+		imageProcessor: imageProcessor,
 	}
 }
 
@@ -110,17 +116,35 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 	)
 
 	ext := filepath.Ext(input.Filename)
-	newFilename := uuid.NewString() + ext
+	newPhotoUuid := uuid.NewString()
+	newRawFilename := newPhotoUuid + ext
+	newSmallFilename := newPhotoUuid + "_small" + ext
 
-	filename, err := s.fileRepo.SaveFile(ctx, s.bucketName, newFilename, input.Content, input.ContentType)
+	originalFileData := input.Content
+
+	smallFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 300, 300, 70)
 
 	if err != nil {
-		log.Error("failed to save photo file", sl.Err(err))
+		log.Error("failed to resize and compress image", sl.Err(err))
+	}
+
+	rawFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
+
+	if err != nil {
+		log.Error("failed to save raw photo file", sl.Err(err))
 
 		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
 	}
 
-	log.Info("saved photo", slog.String("filename", filename))
+	smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
+
+	if err != nil {
+		log.Error("failed to save small photo file", sl.Err(err))
+
+		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
+	}
+
+	log.Info("saved photo", slog.String("filename", rawFilename), slog.String("small_filename", smallFilename))
 
 	photoEntity := entity.Photo{
 		Title: input.Metadata.Title,
@@ -128,7 +152,8 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		Tags: input.Metadata.Tags,
 		CreatedDate: input.Metadata.CreatedAt,
 		TookAt: input.Metadata.TookAt,
-		Filename: filename,
+		RawFilename: rawFilename,
+		SmallFilename: smallFilename,
 		OwnerUuid: ownerUuid,
 	}
 
@@ -201,7 +226,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 	return photos, nil
 }
 
-func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*PhotoWithData, error) {
+func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, isSmall bool) (*PhotoWithData, error) {
 	log := s.log.With(
 		slog.String("op", "service.GetPhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
@@ -224,9 +249,14 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*Phot
 		return nil, err
 	}
 
-	rawPhoto, err := s.fileRepo.GetFile(ctx, s.bucketName, photoEntity.Filename)
+	filename := photoEntity.RawFilename
+	if isSmall {
+		filename = photoEntity.SmallFilename
+	}
+
+	rawPhoto, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), filename)
 	if err != nil {
-		log.Error("error get photo file", sl.Err(err), slog.String("filename", photoEntity.Filename))
+		log.Error("error get photo file", sl.Err(err), slog.String("filename", filename))
 		return nil, fmt.Errorf("error get photo file: %w", err)
 	}
 
@@ -246,6 +276,44 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID) (*Phot
 	}
 
 	return photoWithData, nil
+}
+
+func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*PhotoInfo, error) {
+	log := s.log.With(
+		slog.String("op", "service.GetPhoto"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
+	if err != nil {
+		if errors.Is(err, storage.ErrPhotoNotFound) {
+			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
+			return nil, err
+		}
+
+		log.Error("error get photo", sl.Err(err))
+		return nil, fmt.Errorf("error get photo: %w", err)
+	}
+
+	user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
+	if err != nil {
+		log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+		return nil, err
+	}
+
+	photoInfo := PhotoInfo{
+		PhotoUuid: photoEntity.PhotoUuid,
+		OwnerLogin: user.Login,
+		PhotoMetadata: PhotoMetadata{
+			Title: photoEntity.Title,
+			Description: photoEntity.Description,
+			Tags: photoEntity.Tags,
+			CreatedAt: photoEntity.CreatedDate,
+			TookAt: photoEntity.TookAt,
+		},
+	}
+
+	return &photoInfo, nil
 }
 
 func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, ownerUuid uuid.UUID) error {
@@ -275,7 +343,13 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		return err
 	}
 
-	err = s.fileRepo.DeleteFile(ctx, s.bucketName, photoEntity.Filename)
+	err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
+	if err != nil {
+		log.Error("failed to delete photo file", sl.Err(err))
+		return err
+	}
+
+	err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
 	if err != nil {
 		log.Error("failed to delete photo file", sl.Err(err))
 		return err

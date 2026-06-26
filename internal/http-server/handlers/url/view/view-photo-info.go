@@ -39,7 +39,7 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 			return
 		}
 
-		rawPhoto, err := photoService.GetPhoto(r.Context(), photoUuid)
+		photoInfo, err := photoService.GetPhotoInfo(r.Context(), photoUuid)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Info("photo not found", slog.Any("photo_uuid", photoUuid))
@@ -56,6 +56,6 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 
 		log.Info("photo found", slog.Any("photo_uuid", photoUuid))
 		render.Status(r, http.StatusOK)
-		render.JSON(w, r, rawPhoto.PhotoInfo)
+		render.JSON(w, r, photoInfo)
 	}
 }

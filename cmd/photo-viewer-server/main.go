@@ -16,6 +16,7 @@ import (
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
+	"photo-viewer-server/internal/lib/image"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
 	"photo-viewer-server/internal/service"
@@ -63,7 +64,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName, metadataStorage)
+	image.Initialize()
+
+	imageProcessor := image.NewProcessor()
+
+	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName, metadataStorage, &imageProcessor)
 
 	mailService := mail.NewMailService(cfg)
 
@@ -105,7 +110,8 @@ func main() {
 		apiv1Router.Group(func(r chi.Router) {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
 			r.Get("/photos", view.ViewPhotos(log, photoService))
-			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService))
+			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, false))
+			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, true))
 			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 		})
 
