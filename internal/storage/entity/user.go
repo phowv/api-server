@@ -14,8 +14,20 @@ type User struct {
 	Role								string		`gorm:"column:role"`
 	Description  				string    `gorm:"column:description"`
 	CreateDate					time.Time `gorm:"column:created_at"`
+	IsActive						bool 			`gorm:"column:is_active"`
 }
 
 func (User) TableName() string {
 	return "users.users"
+}
+
+type VerificationCode struct {
+	UserUuid						uuid.UUID `gorm:"column:user_uuid;primaryKey;type:uuid"`
+	HashCode					  string 		`gorm:"column:hash_code"`
+	CreatedDate					time.Time `gorm:"column:created_at"`
+	ExpiresAt						time.Time `gorm:"column:expires_at"`
+}
+
+func (VerificationCode) TableName() string {
+	return "users.codes"
 }

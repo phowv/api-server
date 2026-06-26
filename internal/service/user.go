@@ -19,7 +19,10 @@ var (
 	ErrUserPasswordTooShort = errors.New("password too short")
 	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
 	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
+	ErrUserIsNotActive = errors.New("user is not active")
 )
+
+const verificationCodeExpirationTime = 15 * time.Minute
 
 type UserRepo interface {
 	CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error)
@@ -36,6 +39,12 @@ type SessionRepo interface {
 	RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error
 }
 
+type VerificationCodeRepo interface {
+	SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error
+	DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error
+  GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
+}
+
 type UserData struct {
 	Login string `json:"login"`
 	Email string `json:"email"`
@@ -48,11 +57,18 @@ type UserAuthCredentials struct {
 	Password string `json:"password"`
 }
 
+type UserVerifyCredentials struct {
+	Login string `json:"login"`
+	Code string `json:"code"`
+}
+
 type UserService struct {
 	log *slog.Logger
 	userRepo UserRepo
 	sessionRepo SessionRepo
 	mailService *mail.MailService
+	verificationCodeRepo VerificationCodeRepo
+	verificationCodeGenerate func() (string, error)
 }
 
 type User struct {
@@ -62,12 +78,21 @@ type User struct {
 	Email string
 }
 
-func NewUserService(log *slog.Logger, mailService *mail.MailService, userRepo UserRepo, sessionRepo SessionRepo) *UserService {
+func NewUserService(
+	log *slog.Logger,
+	mailService *mail.MailService,
+	userRepo UserRepo,
+	sessionRepo SessionRepo,
+	verificationCodeRepo VerificationCodeRepo,
+	verificationCodeGenerate func() (string, error),
+) *UserService {
 	return &UserService{
 		log: log,
 		userRepo: userRepo,
 		sessionRepo: sessionRepo,
 		mailService: mailService,
+		verificationCodeRepo: verificationCodeRepo,
+		verificationCodeGenerate: verificationCodeGenerate,
 	}
 }
 
@@ -111,6 +136,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		Description: data.Description,
 		HashPassword: hashedPassword,
 		CreateDate: time.Now(),
+		IsActive: false,
 	}
 
 	existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
@@ -131,7 +157,75 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
+	err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("error delete all codes by user uuid: %w", err)
+	}
+
+	code, err := s.verificationCodeGenerate()
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to generate code: %w", err)
+	}
+
+	err = s.mailService.SendMail(user.Email, "Your verification code", code)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to send verification code: %w", err)
+	}
+
+	hashedCode, err := hashPassword(code)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to hash code: %w", err)
+	}
+
+	verificationCode := entity.VerificationCode{
+		UserUuid: id,
+		HashCode: hashedCode,
+		CreatedDate: time.Now(),
+		ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
+	}
+
+	 err = s.verificationCodeRepo.SaveVerificationCode(ctx, &verificationCode)
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to save verification code: %w", err)
+	}
+
 	return id, nil
+}
+
+func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials UserVerifyCredentials) error {
+	user, err := s.userRepo.GetUserByLogin(ctx, userVerifyCredentials.Login)
+
+	if err != nil {
+		return fmt.Errorf("error get user: %w", err)
+	}
+
+	code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(ctx, user.UserUuid)
+
+	if err != nil {
+		return fmt.Errorf("error get verification code: %w", err)
+	}
+	
+	if !comparePasswords(userVerifyCredentials.Code, code.HashCode) {
+		return ErrUserInvalidAuthentication
+	}
+
+	err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+
+	if err != nil {
+		return fmt.Errorf("error delete all codes by user uuid: %w", err)
+	}
+
+	fields := make(map[string]interface{})
+	fields["is_active"] = true
+	err = s.userRepo.UpdateUser(ctx, user.UserUuid, fields)
+
+	if err != nil {
+		return fmt.Errorf("failed to set active user: %w", err)
+	}
+
+	return nil
 }
 
 func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials UserAuthCredentials) (*User, error) {
@@ -143,6 +237,10 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 
 	if err != nil {
 		return nil, fmt.Errorf("error get user: %w", err)
+	}
+
+	if !user.IsActive {
+		return nil, ErrUserIsNotActive 
 	}
 
 	if !comparePasswords(userCredentials.Password, user.HashPassword) {
@@ -162,6 +260,10 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 
 	if err != nil {
 		return nil, fmt.Errorf("error get user: %w", err)
+	}
+	
+	if !user.IsActive {
+		return nil, ErrUserIsNotActive 
 	}
 
 	return &User{

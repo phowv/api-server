@@ -33,6 +33,8 @@ type Config struct {
 	SmtpUser				string `env:"SMTP_USER" env-required:"true"`
 	SmtpPassword		string `env:"SMTP_PASSWORD" env-required:"true"`
 	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"true"`
+
+	VerificationCode string `env:"VERIFICATION_CODE" env-required:"true"`
 }
 
 func MustLoad() *Config {

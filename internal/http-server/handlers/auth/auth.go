@@ -208,6 +208,43 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 	}
 }
 
+func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log := lg.With(
+			slog.String("op", "handlers.auth.VerifyUser"),
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+		)
+
+		var userVerifyCredentials service.UserVerifyCredentials
+		if err := json.NewDecoder(r.Body).Decode(&userVerifyCredentials); err != nil {
+			log.Error("failed to decode metadata", sl.Err(err))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("invalid metadata"))
+			return
+		}
+
+		log.Debug("request metadata decoded", slog.String("login", userVerifyCredentials.Login))
+
+		err := userService.VerifyUser(r.Context(), userVerifyCredentials)
+		if err != nil {
+			log.Error("failed to verify user", sl.Err(err))
+
+			duration, err := random.CryptoRandInt64(100, 1500)
+			if err != nil {
+				duration = 750
+			}
+			time.Sleep(time.Duration(duration) * time.Millisecond)
+
+			http.Error(w, "invalid code", http.StatusForbidden)	
+			return
+		}
+
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, response.OK())
+	}
+}
+
 type createJwtTokensResult struct {
 	tokenString string
 	refreshCookie *http.Cookie

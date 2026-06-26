@@ -72,7 +72,7 @@ func main() {
 
 	mailService := mail.NewMailService(cfg)
 
-	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage)
+	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage, metadataStorage, staticVerificationCodeGenerator(cfg.VerificationCode))
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
@@ -85,6 +85,7 @@ func main() {
 		"/api/v1/auth/login": {Limit: authRateLimit, Window: time.Minute},
 		"/api/v1/auth/register": {Limit: authRateLimit, Window: time.Minute},
 		"/api/v1/auth/refresh": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/verify": {Limit: authRateLimit, Window: time.Minute},
 	}
 
 	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
@@ -122,6 +123,7 @@ func main() {
 			r.Post("/auth/register", auth.RegisterUser(log, userService))
 			r.Post("/auth/login", auth.LoginUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
 			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
+			r.Post("/auth/verify", auth.VerifyUser(log, userService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
@@ -165,4 +167,10 @@ func setupLogger(env string) *slog.Logger {
 	}
 
 	return log
+}
+
+func staticVerificationCodeGenerator(code string) func () (string, error) {
+	return func() (string, error) {
+		return code, nil
+	}
 }

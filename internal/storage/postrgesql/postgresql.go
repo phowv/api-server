@@ -240,6 +240,44 @@ func (s *Storage) RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID
 	return nil
 }
 
+func (s *Storage) SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error {
+	err := s.db.WithContext(ctx).Create(verificationCode).Error
+
+	if err != nil {
+		return fmt.Errorf("error persist verification code entity: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error {
+	err := s.db.Where("user_uuid = ?", userUuid).Delete(entity.VerificationCode{}).Error
+
+	if err != nil {
+		return fmt.Errorf("error delete verification codes: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Storage) GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error) {
+	var verificationCode entity.VerificationCode
+
+	now := time.Now()
+	res := s.db.WithContext(ctx).Where("user_uuid = ?", userUuid).Where("expires_at > ?", now).First(&verificationCode)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrVerificationCodeNotFound
+		}
+
+		return nil, fmt.Errorf("error get sessions: %w", res.Error)
+	}
+
+	return &verificationCode, nil
+}
+
+
 func (s *Storage) Ping(ctx context.Context) error {
 	db, err := s.db.DB()
 	if err != nil {
