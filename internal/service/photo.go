@@ -15,6 +15,14 @@ import (
 	"github.com/google/uuid"
 )
 
+type StoredPhotoType string
+
+var (
+	PhotoSizeSmall StoredPhotoType = "small"
+	PhotoSizeMedium StoredPhotoType = "medium"
+	PhotoSizeRaw StoredPhotoType = "raw"
+)
+
 type PhotoMetadata struct {
 	Title string `json:"title"`
 	Description string `json:"description"`
@@ -47,6 +55,7 @@ type FileRepo interface {
 	SaveFile(ctx context.Context, bucketName string, objectName string, data []byte, contentType string) (string, error)
 	GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, error)
 	DeleteFile(ctx context.Context, bucketName string, objectName string) error
+	CreateBucket(ctx context.Context, bucketName string) error
 }
 
 type ImageProcessor interface {
@@ -118,33 +127,43 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 	ext := filepath.Ext(input.Filename)
 	newPhotoUuid := uuid.NewString()
 	newRawFilename := newPhotoUuid + ext
+	newMediumFilename := newPhotoUuid + "_medium" + ext
 	newSmallFilename := newPhotoUuid + "_small" + ext
 
 	originalFileData := input.Content
 
-	smallFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 300, 300, 70)
-
+	mediumFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 800, 800, 70)
 	if err != nil {
-		log.Error("failed to resize and compress image", sl.Err(err))
+		log.Error("failed to resize and compress image to medium size", sl.Err(err))
+	}
+
+	smallFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 300, 300, 70)
+	if err != nil {
+		log.Error("failed to resize and compress image to small size", sl.Err(err))
 	}
 
 	rawFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
-
 	if err != nil {
 		log.Error("failed to save raw photo file", sl.Err(err))
 
 		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
 	}
 
-	smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
+	mediumFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newMediumFilename, mediumFileData, input.ContentType)
+	if err != nil {
+		log.Error("failed to save medium photo file", sl.Err(err))
 
+		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
+	}
+
+	smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
 	if err != nil {
 		log.Error("failed to save small photo file", sl.Err(err))
 
 		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
 	}
 
-	log.Info("saved photo", slog.String("filename", rawFilename), slog.String("small_filename", smallFilename))
+	log.Info("saved photo", slog.String("filename", rawFilename), slog.String("medium_filename", mediumFilename), slog.String("small_filename", smallFilename))
 
 	photoEntity := entity.Photo{
 		Title: input.Metadata.Title,
@@ -153,6 +172,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		CreatedDate: input.Metadata.CreatedAt,
 		TookAt: input.Metadata.TookAt,
 		RawFilename: rawFilename,
+		MediumFilename: mediumFilename,
 		SmallFilename: smallFilename,
 		OwnerUuid: ownerUuid,
 	}
@@ -226,7 +246,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 	return photos, nil
 }
 
-func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, isSmall bool) (*PhotoWithData, error) {
+func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, storedType StoredPhotoType) (*PhotoWithData, error) {
 	log := s.log.With(
 		slog.String("op", "service.GetPhoto"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
@@ -250,9 +270,12 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, isSmal
 	}
 
 	filename := photoEntity.RawFilename
-	if isSmall {
-		filename = photoEntity.SmallFilename
+	switch storedType {
+	case PhotoSizeSmall: filename = photoEntity.SmallFilename
+	case PhotoSizeMedium: filename = photoEntity.MediumFilename
+	case PhotoSizeRaw: filename = photoEntity.RawFilename
 	}
+	
 
 	rawPhoto, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), filename)
 	if err != nil {

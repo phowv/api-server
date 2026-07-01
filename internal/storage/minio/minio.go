@@ -37,17 +37,26 @@ func New(host string, port int, user string, password string, useSSL bool) (*Fil
 	return &FileStorage{cl: client}, nil
 }
 
-func (s *FileStorage) SaveFile(ctx context.Context, bucketName string, objectName string, data []byte, contentType string) (string, error) {
+func (s *FileStorage) CreateBucket(ctx context.Context, bucketName string) error {
 	exists, err := s.cl.BucketExists(ctx, bucketName)
 	if err != nil {
-		return "", fmt.Errorf("error check exists bucket: %w", err)
+		return fmt.Errorf("error check exists bucket: %w", err)
 	}
 
 	if !exists {
 		err = s.cl.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
 		if err != nil {
-			return "", fmt.Errorf("error create bucket: %w", err)
+			return fmt.Errorf("error create bucket: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func (s *FileStorage) SaveFile(ctx context.Context, bucketName string, objectName string, data []byte, contentType string) (string, error) {
+	exists, err := s.cl.BucketExists(ctx, bucketName)
+	if err != nil || !exists {
+		return "", fmt.Errorf("error check exists bucket: %w", err)
 	}
 
 	reader := bytes.NewReader(data)

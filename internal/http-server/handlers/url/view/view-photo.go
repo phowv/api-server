@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, isSmall bool) http.HandlerFunc {
+func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, photoType service.StoredPhotoType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.view.ViewPhotos"),
@@ -40,7 +40,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, isSmall bool
 			return
 		}
 
-		rawPhoto, err := photoService.GetPhoto(r.Context(), photoUuid, isSmall)
+		rawPhoto, err := photoService.GetPhoto(r.Context(), photoUuid, photoType)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Info("photo not found", slog.Any("photo_uuid", photoUuid))

@@ -69,6 +69,7 @@ type UserService struct {
 	mailService *mail.MailService
 	verificationCodeRepo VerificationCodeRepo
 	verificationCodeGenerate func() (string, error)
+	fileRepo FileRepo
 }
 
 type User struct {
@@ -85,6 +86,7 @@ func NewUserService(
 	sessionRepo SessionRepo,
 	verificationCodeRepo VerificationCodeRepo,
 	verificationCodeGenerate func() (string, error),
+	fileRepo FileRepo,
 ) *UserService {
 	return &UserService{
 		log: log,
@@ -93,6 +95,7 @@ func NewUserService(
 		mailService: mailService,
 		verificationCodeRepo: verificationCodeRepo,
 		verificationCodeGenerate: verificationCodeGenerate,
+		fileRepo: fileRepo,
 	}
 }
 
@@ -223,6 +226,11 @@ func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials User
 
 	if err != nil {
 		return fmt.Errorf("failed to set active user: %w", err)
+	}
+
+	err = s.fileRepo.CreateBucket(ctx, user.UserUuid.String())
+	if err != nil {
+		return fmt.Errorf("failed to create bucket: %w", err)
 	}
 
 	return nil

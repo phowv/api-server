@@ -72,7 +72,7 @@ func main() {
 
 	mailService := mail.NewMailService(cfg)
 
-	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage, metadataStorage, staticVerificationCodeGenerator(cfg.VerificationCode))
+	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage, metadataStorage, staticVerificationCodeGenerator(cfg.VerificationCode), storage)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
@@ -111,8 +111,9 @@ func main() {
 		apiv1Router.Group(func(r chi.Router) {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
 			r.Get("/photos", view.ViewPhotos(log, photoService))
-			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, false))
-			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, true))
+			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, service.PhotoSizeRaw))
+			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
+			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
 			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 		})
 
