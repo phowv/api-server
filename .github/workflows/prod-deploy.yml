@@ -1,0 +1,17 @@
+name: Notify deploy to dev server
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch deploy event
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DEPLOY_TOKEN }}
+          repository: phowv/deploy
+          event-type: api-server-prod-deploy-request
