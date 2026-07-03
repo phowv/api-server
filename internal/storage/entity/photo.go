@@ -13,6 +13,7 @@ type Photo struct {
 	Description  				string    `gorm:"column:description"`
 	Tags								string		`gorm:"column:tags"`
 	RawFilename      		string    `gorm:"column:filename"`
+	MediumFilename			string    `gorm:"column:medium_filename"`
 	SmallFilename				string    `gorm:"column:small_filename"`
 	ModifiedDate 				time.Time `gorm:"column:modified_date;autoUpdateTime"`
 	CreatedDate					time.Time `gorm:"column:created_at"`
