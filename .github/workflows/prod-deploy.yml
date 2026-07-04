@@ -1,9 +1,9 @@
-name: Notify deploy to dev server
+name: Notify deploy to prod server
 
 on:
   push:
     branches:
-      - dev
+      - prod
 
 jobs:
   notify:
