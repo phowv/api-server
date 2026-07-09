@@ -2,6 +2,7 @@ package upload
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -98,6 +99,12 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 		photoUuid, err := photoService.SavePhoto(r.Context(), input, userUuid)
 		if err != nil {
 			log.Error("failed to save photo", sl.Err(err))
+
+			if errors.Is(err, service.ErrUserQuotaIsNotEnough) {
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("quota is not enough"))
+				return
+			}
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))

@@ -72,7 +72,16 @@ func main() {
 
 	mailService := mail.NewMailService(cfg)
 
-	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage, metadataStorage, staticVerificationCodeGenerator(cfg.VerificationCode), storage)
+	userService := service.NewUserService(
+		log,
+		&mailService,
+		metadataStorage,
+		metadataStorage,
+		metadataStorage,
+		staticVerificationCodeGenerator(cfg.VerificationCode),
+		storage,
+		cfg.InitialPhotosQuota,
+		)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 

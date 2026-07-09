@@ -35,6 +35,7 @@ type Config struct {
 	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"true"`
 
 	VerificationCode string `env:"VERIFICATION_CODE" env-required:"true"`
+	InitialPhotosQuota int `env:"INITIAL_PHOTOS_QUOTA" env-default:"0"`
 }
 
 func MustLoad() *Config {

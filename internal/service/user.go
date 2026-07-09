@@ -20,9 +20,12 @@ var (
 	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
 	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
 	ErrUserIsNotActive = errors.New("user is not active")
+	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
 )
 
-const verificationCodeExpirationTime = 15 * time.Minute
+const (
+	verificationCodeExpirationTime = 15 * time.Minute
+)
 
 type UserRepo interface {
 	CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error)
@@ -70,6 +73,7 @@ type UserService struct {
 	verificationCodeRepo VerificationCodeRepo
 	verificationCodeGenerate func() (string, error)
 	fileRepo FileRepo
+	initinalPhotosQuota int
 }
 
 type User struct {
@@ -87,6 +91,7 @@ func NewUserService(
 	verificationCodeRepo VerificationCodeRepo,
 	verificationCodeGenerate func() (string, error),
 	fileRepo FileRepo,
+	initinalPhotosQuota int,
 ) *UserService {
 	return &UserService{
 		log: log,
@@ -96,6 +101,7 @@ func NewUserService(
 		verificationCodeRepo: verificationCodeRepo,
 		verificationCodeGenerate: verificationCodeGenerate,
 		fileRepo: fileRepo,
+		initinalPhotosQuota: initinalPhotosQuota,
 	}
 }
 
@@ -140,6 +146,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		HashPassword: hashedPassword,
 		CreateDate: time.Now(),
 		IsActive: false,
+		PhotosQuota: s.initinalPhotosQuota,
 	}
 
 	existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)

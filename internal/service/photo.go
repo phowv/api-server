@@ -124,6 +124,28 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
+
+	user, err := s.userRepo.GetUserByUuid(ctx, ownerUuid)
+	if err != nil {
+		if errors.Is(err, storage.ErrUserNotFound) {
+			log.Error("owner not found", sl.Err(err))
+
+			return uuid.Nil, err
+		}
+		log.Error("failed to get owner for photos", sl.Err(err))
+
+		return uuid.Nil, fmt.Errorf("failed to get all photos: %w", err)
+	}
+
+	if user.PhotosQuota < 1 {
+		return uuid.Nil, ErrUserQuotaIsNotEnough
+	}
+
+	err = s.userRepo.UpdateUser(ctx, ownerUuid, map[string]any{"photos_quota": user.PhotosQuota - 1})
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to update user quota: %w", err)
+	}
+
 	ext := filepath.Ext(input.Filename)
 	newPhotoUuid := uuid.NewString()
 	newRawFilename := newPhotoUuid + ext
