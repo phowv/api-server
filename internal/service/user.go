@@ -33,7 +33,8 @@ type UserRepo interface {
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
-  UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
+	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
+	DecrementQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
 }
 
 type SessionRepo interface {

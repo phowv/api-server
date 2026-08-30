@@ -23,6 +23,14 @@ var (
 	PhotoSizeRaw StoredPhotoType = "raw"
 )
 
+const (
+	mediumImageSize = 800
+	mediumImagePostfix = "_medium"
+
+	smallImageSize = 300
+	smallImagePostfix = "_small"
+)
+
 type PhotoMetadata struct {
 	Title string `json:"title"`
 	Description string `json:"description"`
@@ -42,6 +50,19 @@ type PhotoWithData struct {
 	Content []byte
 }
 
+type SavePhotoInput struct {
+	Metadata PhotoMetadata
+	Filename string
+	Content []byte
+	ContentType string
+}
+
+type imageWithType struct {
+	name string
+	content []byte
+	contentType string
+}
+
 type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
@@ -53,7 +74,7 @@ type PhotoRepo interface {
 
 type FileRepo interface {
 	SaveFile(ctx context.Context, bucketName string, objectName string, data []byte, contentType string) (string, error)
-	GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, error)
+	GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, string, error)
 	DeleteFile(ctx context.Context, bucketName string, objectName string) error
 	CreateBucket(ctx context.Context, bucketName string) error
 }
@@ -69,9 +90,10 @@ type PhotoService struct {
 	bucketName string
 	userRepo UserRepo
 	imageProcessor ImageProcessor
+	txManager storage.TxManager
 }
 
-func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo, imageProcessor ImageProcessor) *PhotoService {
+func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo, imageProcessor ImageProcessor, txManager storage.TxManager) *PhotoService {
 	return &PhotoService{
 		log: log,
 		photoRepo: photoRepo,
@@ -79,21 +101,15 @@ func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, b
 		bucketName: bucketName,
 		userRepo: userRepo,
 		imageProcessor: imageProcessor,
+		txManager: txManager,
 	}
 }
 
-type SavePhotoInput struct {
-	Metadata PhotoMetadata
-	Filename string
-	Content []byte
-	ContentType string
-}
-
-func metadataToMap(m *PhotoMetadata) map[string]interface{} {
+func metadataToMap(m *PhotoMetadata) map[string]any {
 	if m == nil {
 		return nil
 	}
-	out := make(map[string]interface{})
+	out := make(map[string]any)
 
 	if m.Title != "" {
 		out["title"] = m.Title
@@ -124,86 +140,107 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-
-	user, err := s.userRepo.GetUserByUuid(ctx, ownerUuid)
-	if err != nil {
-		if errors.Is(err, storage.ErrUserNotFound) {
-			log.Error("owner not found", sl.Err(err))
-
-			return uuid.Nil, err
-		}
-		log.Error("failed to get owner for photos", sl.Err(err))
-
-		return uuid.Nil, fmt.Errorf("failed to get all photos: %w", err)
-	}
-
-	if user.PhotosQuota < 1 {
-		return uuid.Nil, ErrUserQuotaIsNotEnough
-	}
-
-	err = s.userRepo.UpdateUser(ctx, ownerUuid, map[string]any{"photos_quota": user.PhotosQuota - 1})
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to update user quota: %w", err)
-	}
-
 	ext := filepath.Ext(input.Filename)
 	newPhotoUuid := uuid.NewString()
 	newRawFilename := newPhotoUuid + ext
-	newMediumFilename := newPhotoUuid + "_medium" + ext
-	newSmallFilename := newPhotoUuid + "_small" + ext
+	newMediumFilename := newPhotoUuid + mediumImagePostfix + ext
+	newSmallFilename := newPhotoUuid + smallImagePostfix + ext
 
 	originalFileData := input.Content
 
-	mediumFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 800, 800, 70)
+	mediumFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, mediumImageSize, mediumImageSize, 70)
 	if err != nil {
-		log.Error("failed to resize and compress image to medium size", sl.Err(err))
+		return uuid.Nil, fmt.Errorf("failed to resize and compress image to medium size: %w", err)
 	}
 
-	smallFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, 300, 300, 70)
+	smallFileData, err := s.imageProcessor.ResizeAndCompress(ctx, originalFileData, smallImageSize, smallImageSize, 70)
 	if err != nil {
-		log.Error("failed to resize and compress image to small size", sl.Err(err))
+		return uuid.Nil, fmt.Errorf("failed to resize and compress image to small size: %w", err)
 	}
 
-	rawFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
+	var photoUuid uuid.UUID
+	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		err := s.userRepo.DecrementQuotaByUuid(txCtx, ownerUuid)
+
+		if err != nil {
+			return fmt.Errorf("failed to decrement user's quota: %w", err)
+		}
+
+		var savedImages []string
+		cleanup := func() error {
+			log.Info("cleanup saved images")
+			for _, image := range savedImages {
+			  err = s.fileRepo.DeleteFile(txCtx, ownerUuid.String(), image)
+				if err != nil {
+					return fmt.Errorf("failed to cleanup image %s: %w", image, err)
+				}
+			}
+			return nil
+		}
+
+		rawFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
+		if err != nil {
+			log.Error("failed to save raw photo file", sl.Err(err))
+
+			cleanupErr := cleanup()
+			if cleanupErr != nil {
+				return fmt.Errorf("failed to save photo file: %w: %w", err, cleanupErr)
+			}
+			return fmt.Errorf("failed to save photo file: %w", err)
+		}
+		savedImages = append(savedImages, newRawFilename)
+
+		mediumFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newMediumFilename, mediumFileData, input.ContentType)
+		if err != nil {
+			log.Error("failed to save medium photo file", sl.Err(err))
+
+			cleanupErr := cleanup()
+			if cleanupErr != nil {
+				return fmt.Errorf("failed to save photo file: %w: %w", err, cleanupErr)
+			}
+			return fmt.Errorf("failed to save photo file: %w", err)
+		}
+		savedImages = append(savedImages, newMediumFilename)
+
+		smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
+		if err != nil {
+			log.Error("failed to save small photo file", sl.Err(err))
+
+			cleanupErr := cleanup()
+			if cleanupErr != nil {
+				return fmt.Errorf("failed to save photo file: %w: %w", err, cleanupErr)
+			}
+			return fmt.Errorf("failed to save photo file: %w", err)
+		}
+		savedImages = append(savedImages, newSmallFilename)
+
+		log.Info("saved photo", slog.String("filename", rawFilename), slog.String("medium_filename", mediumFilename), slog.String("small_filename", smallFilename))
+
+		photoEntity := entity.Photo{
+			Title: input.Metadata.Title,
+			Description: input.Metadata.Description,
+			Tags: input.Metadata.Tags,
+			CreatedDate: input.Metadata.CreatedAt,
+			TookAt: input.Metadata.TookAt,
+			RawFilename: rawFilename,
+			MediumFilename: mediumFilename,
+			SmallFilename: smallFilename,
+			OwnerUuid: ownerUuid,
+		}
+
+		photoUuid, err = s.photoRepo.SavePhoto(ctx, &photoEntity)
+
+		if err != nil {
+			log.Error("error save photo metadata", sl.Err(err))
+			cleanup()
+			return fmt.Errorf("error save photo metadata: %w", err)
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		log.Error("failed to save raw photo file", sl.Err(err))
-
-		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
-	}
-
-	mediumFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newMediumFilename, mediumFileData, input.ContentType)
-	if err != nil {
-		log.Error("failed to save medium photo file", sl.Err(err))
-
-		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
-	}
-
-	smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
-	if err != nil {
-		log.Error("failed to save small photo file", sl.Err(err))
-
-		return uuid.Nil, fmt.Errorf("failed to save photo file: %w", err)
-	}
-
-	log.Info("saved photo", slog.String("filename", rawFilename), slog.String("medium_filename", mediumFilename), slog.String("small_filename", smallFilename))
-
-	photoEntity := entity.Photo{
-		Title: input.Metadata.Title,
-		Description: input.Metadata.Description,
-		Tags: input.Metadata.Tags,
-		CreatedDate: input.Metadata.CreatedAt,
-		TookAt: input.Metadata.TookAt,
-		RawFilename: rawFilename,
-		MediumFilename: mediumFilename,
-		SmallFilename: smallFilename,
-		OwnerUuid: ownerUuid,
-	}
-
-	photoUuid, err := s.photoRepo.SavePhoto(ctx, &photoEntity)
-
-	if err != nil {
-		log.Error("error save photo metadata", sl.Err(err))
-		return uuid.Nil, fmt.Errorf("error save photo metadata: %w", err)
+		return uuid.Nil, fmt.Errorf("failed to transact photo data: %w", err)
 	}
 
 	return photoUuid, nil
@@ -299,7 +336,7 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, stored
 	}
 	
 
-	rawPhoto, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), filename)
+	rawPhoto, _, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), filename)
 	if err != nil {
 		log.Error("error get photo file", sl.Err(err), slog.String("filename", filename))
 		return nil, fmt.Errorf("error get photo file: %w", err)
@@ -367,40 +404,82 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
-	if err != nil {
-		if errors.Is(err, storage.ErrPhotoNotFound) {
-			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
-			return err
+	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
+		if err != nil {
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
+				return err
+			}
+
+			log.Error("error get photo", sl.Err(err))
+			return fmt.Errorf("error get photo: %w", err)
 		}
 
-		log.Error("error get photo", sl.Err(err))
-		return fmt.Errorf("error get photo: %w", err)
-	}
+		if photoEntity.OwnerUuid != ownerUuid {
+			return ErrUserInvalidAuthorization
+		}
 
-	if photoEntity.OwnerUuid != ownerUuid {	
-		return ErrUserInvalidAuthorization
-	}
+		rawPhotoData, rawContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
+		if err != nil {
+			return fmt.Errorf("failed to get raw photo file")
+		}
+		mediumPhotoData, mediumContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
+		if err != nil {
+			return fmt.Errorf("failed to get medium photo file")
+		}
+		smallPhotoData, smallContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
+		if err != nil {
+			return fmt.Errorf("failed to get small photo file")
+		}
 
-	err = s.photoRepo.DeletePhoto(ctx, photoUuid, ownerUuid)
-	if err != nil {
-		log.Error("failed to delete photo", sl.Err(err))
-		return err
-	}
+		var deleted []imageWithType
+		restore := func() error {
+			for _, image := range deleted {
+				_, err := s.fileRepo.SaveFile(txCtx, photoEntity.OwnerUuid.String(), image.name, image.content, image.contentType)
+				if err != nil {
+					return fmt.Errorf("failed to restore image file: %w", err)
+				}
+			}
+			return nil
+		}
 
-	err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
-	if err != nil {
-		log.Error("failed to delete photo file", sl.Err(err))
-		return err
-	}
+		err = s.photoRepo.DeletePhoto(ctx, photoUuid, ownerUuid)
+		if err != nil {
+			return fmt.Errorf("failed to delete photo: %w", err)
+		}
 
-	err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
-	if err != nil {
-		log.Error("failed to delete photo file", sl.Err(err))
-		return err
-	}
+		deleted = append(deleted, imageWithType{name: photoEntity.RawFilename, content: rawPhotoData, contentType: rawContentType})
+		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
+		if err != nil {
+			restoreErr := restore()
+			if restoreErr != nil {
+				return fmt.Errorf("failed to delete raw photo file: %w: %w", err, restoreErr)
+			}
+			return fmt.Errorf("failed to delete raw photo file: %w", err)
+		}
 
-	return nil
+		deleted = append(deleted, imageWithType{name: photoEntity.MediumFilename, content: mediumPhotoData, contentType: mediumContentType})
+		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
+		if err != nil {
+			restoreErr := restore()
+			if restoreErr != nil {
+				return fmt.Errorf("failed to delete medium photo file: %w: %w", err, restoreErr)
+			}
+			return fmt.Errorf("failed to delete medium photo file: %w", err)
+		}
+
+		deleted = append(deleted, imageWithType{name: photoEntity.SmallFilename, content: smallPhotoData, contentType: smallContentType})
+		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
+		if err != nil {
+			restoreErr := restore()
+			if restoreErr != nil {
+				return fmt.Errorf("failed to delete small photo file: %w: %w", err, restoreErr)
+			}
+			return fmt.Errorf("failed to delete small photo file: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID, metadata PhotoMetadata, userUuid uuid.UUID) error {
@@ -409,7 +488,9 @@ func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID,
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	err := s.photoRepo.UpdatePhoto(ctx, photoUuid, userUuid, metadataToMap(&metadata))
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+	  return s.photoRepo.UpdatePhoto(ctx, photoUuid, userUuid, metadataToMap(&metadata))
+	})
 
 	if err != nil {
 		if errors.Is(err, storage.ErrPhotoNotFound) {

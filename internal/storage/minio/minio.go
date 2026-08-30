@@ -72,28 +72,33 @@ func (s *FileStorage) SaveFile(ctx context.Context, bucketName string, objectNam
 	return info.Key, nil
 }
 
-func (s *FileStorage) GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, error) {
+func (s *FileStorage) GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, string, error) {
 	exists, err := s.cl.BucketExists(ctx, bucketName)
 	if err != nil {
-		return nil, fmt.Errorf("error check exists bucket: %w", err)
+		return nil, "", fmt.Errorf("error check exists bucket: %w", err)
 	}
 
 	if !exists {
-		return nil, ErrBucketNotFound
+		return nil, "", ErrBucketNotFound
 	}
 
 	obj, err := s.cl.GetObject(ctx, bucketName, objectName, minio.GetObjectOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("error get object: %w", err)
+		return nil, "", fmt.Errorf("error get object: %w", err)
 	}
 	defer obj.Close()
 
 	data, err := io.ReadAll(obj)
 	if err != nil {
-		return nil, fmt.Errorf("error read file: %w", err)
+		return nil, "", fmt.Errorf("error read file: %w", err)
 	}
 
-	return data, nil
+	info, err := obj.Stat()
+	if err != nil {
+		return nil, "", fmt.Errorf("error read object info: %w", err)
+	}
+
+	return data, info.ContentType, nil
 }
 
 func (s *FileStorage) DeleteFile(ctx context.Context, bucketName string, objectName string) error {

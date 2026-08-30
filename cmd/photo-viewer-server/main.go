@@ -58,6 +58,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	photoRepository := postrgesql.NewPhotoRepository(metadataStorage)
+	userRepository := postrgesql.NewUserRepository(metadataStorage)
+	authRepository := postrgesql.NewAuthReposotory(metadataStorage)
+	txManager := postrgesql.NewTransactionManager(metadataStorage)
+
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
 	if err != nil {
 		log.Error("failed init minio storage")
@@ -68,16 +73,16 @@ func main() {
 
 	imageProcessor := image.NewProcessor()
 
-	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName, metadataStorage, &imageProcessor)
+	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager)
 
 	mailService := mail.NewMailService(cfg)
 
 	userService := service.NewUserService(
 		log,
 		&mailService,
-		metadataStorage,
-		metadataStorage,
-		metadataStorage,
+		userRepository,
+		authRepository,
+		authRepository,
 		staticVerificationCodeGenerator(cfg.VerificationCode),
 		storage,
 		cfg.InitialPhotosQuota,
