@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"photo-viewer-server/internal/lib/mail"
+	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
 	"time"
 
@@ -25,6 +26,7 @@ var (
 
 const (
 	verificationCodeExpirationTime = 15 * time.Minute
+	minimalPasswordLength = 8
 )
 
 type UserRepo interface {
@@ -72,9 +74,10 @@ type UserService struct {
 	sessionRepo SessionRepo
 	mailService *mail.MailService
 	verificationCodeRepo VerificationCodeRepo
-	verificationCodeGenerate func() (string, error)
+	generateVerificationCode func() (string, error)
 	fileRepo FileRepo
 	initinalPhotosQuota int
+	txManager storage.TxManager
 }
 
 type User struct {
@@ -90,9 +93,10 @@ func NewUserService(
 	userRepo UserRepo,
 	sessionRepo SessionRepo,
 	verificationCodeRepo VerificationCodeRepo,
-	verificationCodeGenerate func() (string, error),
+	generateVerificationCode func() (string, error),
 	fileRepo FileRepo,
 	initinalPhotosQuota int,
+	txManager storage.TxManager,
 ) *UserService {
 	return &UserService{
 		log: log,
@@ -100,9 +104,10 @@ func NewUserService(
 		sessionRepo: sessionRepo,
 		mailService: mailService,
 		verificationCodeRepo: verificationCodeRepo,
-		verificationCodeGenerate: verificationCodeGenerate,
+		generateVerificationCode: generateVerificationCode,
 		fileRepo: fileRepo,
 		initinalPhotosQuota: initinalPhotosQuota,
+		txManager: txManager,
 	}
 }
 
@@ -139,113 +144,124 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		return uuid.Nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	user := entity.User{
-		Login: data.Login,
-		Email: data.Email,
-		Role: "user",
-		Description: data.Description,
-		HashPassword: hashedPassword,
-		CreateDate: time.Now(),
-		IsActive: false,
-		PhotosQuota: s.initinalPhotosQuota,
-	}
+	var id uuid.UUID
 
-	existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
+	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		user := entity.User{
+			Login: data.Login,
+			Email: data.Email,
+			Role: "user",
+			Description: data.Description,
+			HashPassword: hashedPassword,
+			CreateDate: time.Now(),
+			IsActive: false,
+			PhotosQuota: s.initinalPhotosQuota,
+		}
 
-	if existingUser != nil {
-		return uuid.Nil, ErrUserExists
-	}
+		existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
 
-	existingUser, err = s.userRepo.GetUserByLogin(ctx, data.Login)
+		if existingUser != nil {
+			return ErrUserExists
+		}
 
-	if existingUser != nil {
-		return uuid.Nil, ErrUserExists
-	}
+		existingUser, err = s.userRepo.GetUserByLogin(ctx, data.Login)
 
-	id, err := s.userRepo.CreateUser(ctx, &user)
+		if existingUser != nil {
+			return ErrUserExists
+		}
+
+		id, err = s.userRepo.CreateUser(ctx, &user)
+
+		if err != nil {
+			return fmt.Errorf("failed to create user: %w", err)
+		}
+
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+
+		if err != nil {
+			return fmt.Errorf("error delete all codes by user uuid: %w", err)
+		}
+
+		code, err := s.generateVerificationCode()
+		if err != nil {
+			return fmt.Errorf("failed to generate code: %w", err)
+		}
+
+		err = s.mailService.SendMail(user.Email, "Your verification code", code)
+		if err != nil {
+			return fmt.Errorf("failed to send verification code: %w", err)
+		}
+
+		hashedCode, err := hashPassword(code)
+		if err != nil {
+			return fmt.Errorf("failed to hash code: %w", err)
+		}
+
+		verificationCode := entity.VerificationCode{
+			UserUuid: id,
+			HashCode: hashedCode,
+			CreatedDate: time.Now(),
+			ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
+		}
+
+		 err = s.verificationCodeRepo.SaveVerificationCode(ctx, &verificationCode)
+
+		if err != nil {
+			return fmt.Errorf("failed to save verification code: %w", err)
+		}
+		return nil
+	})
 
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to create user: %w", err)
-	}
-
-	err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
-
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("error delete all codes by user uuid: %w", err)
-	}
-
-	code, err := s.verificationCodeGenerate()
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to generate code: %w", err)
-	}
-
-	err = s.mailService.SendMail(user.Email, "Your verification code", code)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to send verification code: %w", err)
-	}
-
-	hashedCode, err := hashPassword(code)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to hash code: %w", err)
-	}
-
-	verificationCode := entity.VerificationCode{
-		UserUuid: id,
-		HashCode: hashedCode,
-		CreatedDate: time.Now(),
-		ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
-	}
-
-	 err = s.verificationCodeRepo.SaveVerificationCode(ctx, &verificationCode)
-
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("failed to save verification code: %w", err)
+		return uuid.Nil, err
 	}
 
 	return id, nil
 }
 
 func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials UserVerifyCredentials) error {
-	user, err := s.userRepo.GetUserByLogin(ctx, userVerifyCredentials.Login)
+	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		user, err := s.userRepo.GetUserByLogin(ctx, userVerifyCredentials.Login)
 
-	if err != nil {
-		return fmt.Errorf("error get user: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error get user: %w", err)
+		}
 
-	code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(ctx, user.UserUuid)
+		code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(ctx, user.UserUuid)
 
-	if err != nil {
-		return fmt.Errorf("error get verification code: %w", err)
-	}
-	
-	if !comparePasswords(userVerifyCredentials.Code, code.HashCode) {
-		return ErrUserInvalidAuthentication
-	}
+		if err != nil {
+			return fmt.Errorf("error get verification code: %w", err)
+		}
+		
+		if !comparePasswords(userVerifyCredentials.Code, code.HashCode) {
+			return ErrUserInvalidAuthentication
+		}
 
-	err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
 
-	if err != nil {
-		return fmt.Errorf("error delete all codes by user uuid: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error delete all codes by user uuid: %w", err)
+		}
 
-	fields := make(map[string]interface{})
-	fields["is_active"] = true
-	err = s.userRepo.UpdateUser(ctx, user.UserUuid, fields)
+		fields := make(map[string]any)
+		fields["is_active"] = true
+		err = s.userRepo.UpdateUser(ctx, user.UserUuid, fields)
 
-	if err != nil {
-		return fmt.Errorf("failed to set active user: %w", err)
-	}
+		if err != nil {
+			return fmt.Errorf("failed to set active user: %w", err)
+		}
 
-	err = s.fileRepo.CreateBucket(ctx, user.UserUuid.String())
-	if err != nil {
-		return fmt.Errorf("failed to create bucket: %w", err)
-	}
+		err = s.fileRepo.CreateBucket(ctx, user.UserUuid.String())
+		if err != nil {
+			return fmt.Errorf("failed to create bucket: %w", err)
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials UserAuthCredentials) (*User, error) {
-	if len(userCredentials.Password) < 8 {
+	if len(userCredentials.Password) < minimalPasswordLength {
 		return nil, ErrUserInvalidAuthentication
 	}
 
@@ -305,7 +321,10 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 		IsRevoked: false,
 	}
 
-	_, err = s.sessionRepo.SaveSession(ctx, &session)
+	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		_, err := s.sessionRepo.SaveSession(ctx, &session)
+		return err
+	})
 
 	if err != nil {
 		return fmt.Errorf("error save session: %w", err)
@@ -315,23 +334,31 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 }
 
 func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
-	session, err := s.sessionRepo.GetValidSessionByUuid(ctx, sessionUuid)
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		session, err := s.sessionRepo.GetValidSessionByUuid(ctx, sessionUuid)
+		if err != nil {
+			return fmt.Errorf("failed to get session: %w", err)
+		}
+
+		if session.IsRevoked || !compareTokens(token, session.HashToken) {
+			return errors.New("expired token")
+		}
+
+		err = s.sessionRepo.RevokeSessionByUuid(ctx, sessionUuid)
+
+		if err != nil {
+			return fmt.Errorf("failed to revoke session: %w", err)
+		}
+
+		if session.ExpiresAt.Before(time.Now()) {
+			return errors.New("expired token")
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
-
-	if session.IsRevoked || !compareTokens(token, session.HashToken) {
-		return nil, errors.New("expired token")
-	}
-
-	err = s.sessionRepo.RevokeSessionByUuid(ctx, sessionUuid)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to revoke session: %w", err)
-	}
-
-	if session.ExpiresAt.Before(time.Now()) {
-		return nil, errors.New("expired token")
+		return nil, err
 	}
 
 	return s.GetUserInfo(ctx, userUuid)

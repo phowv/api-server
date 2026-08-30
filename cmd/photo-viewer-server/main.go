@@ -86,6 +86,7 @@ func main() {
 		staticVerificationCodeGenerator(cfg.VerificationCode),
 		storage,
 		cfg.InitialPhotosQuota,
+		txManager,
 		)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
