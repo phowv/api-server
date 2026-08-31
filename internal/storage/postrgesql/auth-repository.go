@@ -21,7 +21,7 @@ func NewAuthReposotory(st *Storage) *AuthRepository {
 }
 
 func (s *AuthRepository) SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error) {
-	err := s.db.WithContext(ctx).Create(refreshToken).Error
+	err := s.getDB(ctx).Create(refreshToken).Error
 
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("error persist session entity: %w", err)
@@ -34,7 +34,7 @@ func (s *AuthRepository) GetValidSessionByUuid(ctx context.Context, sessionUuid 
 	var session entity.Session
 
 	now := time.Now()
-	res := s.db.WithContext(ctx).Where("session_uuid = ?", sessionUuid).Where("is_revoked = FALSE").Where("expires_at > ?", now).First(&session)
+	res := s.getDB(ctx).Where("session_uuid = ?", sessionUuid).Where("is_revoked = FALSE").Where("expires_at > ?", now).First(&session)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -48,7 +48,7 @@ func (s *AuthRepository) GetValidSessionByUuid(ctx context.Context, sessionUuid 
 }
 
 func (s *AuthRepository) RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error {
-	res := s.db.WithContext(ctx).Model(&entity.Session{}).Where("session_uuid = ?", sessionUuid).Update("is_revoked", true)
+	res := s.getDB(ctx).Model(&entity.Session{}).Where("session_uuid = ?", sessionUuid).Update("is_revoked", true)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -66,7 +66,7 @@ func (s *AuthRepository) RevokeSessionByUuid(ctx context.Context, sessionUuid uu
 }
 
 func (s *AuthRepository) SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error {
-	err := s.db.WithContext(ctx).Create(verificationCode).Error
+	err := s.getDB(ctx).Create(verificationCode).Error
 
 	if err != nil {
 		return fmt.Errorf("error persist verification code entity: %w", err)
@@ -89,7 +89,7 @@ func (s *AuthRepository) GetValidVerificationCodeByUserUuid(ctx context.Context,
 	var verificationCode entity.VerificationCode
 
 	now := time.Now()
-	res := s.db.WithContext(ctx).Where("user_uuid = ?", userUuid).Where("expires_at > ?", now).First(&verificationCode)
+	res := s.getDB(ctx).Where("user_uuid = ?", userUuid).Where("expires_at > ?", now).First(&verificationCode)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {

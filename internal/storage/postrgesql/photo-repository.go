@@ -20,7 +20,7 @@ func NewPhotoRepository(st *Storage) *PhotoRepository {
 }
 
 func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error) {
-	err := s.db.WithContext(ctx).Create(photo).Error
+	err := s.getDB(ctx).Create(photo).Error
 
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("error persist photo entity: %w", err)
@@ -32,7 +32,7 @@ func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (u
 func (s *PhotoRepository) GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error) {
 	var photo entity.Photo
 
-	err := s.db.WithContext(ctx).First(&photo, uuid).Error
+	err := s.getDB(ctx).First(&photo, uuid).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -80,7 +80,7 @@ func (s *PhotoRepository) DeletePhoto(ctx context.Context, uuid uuid.UUID, owner
 }
 
 func (s *PhotoRepository) UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error {
-  res := s.db.WithContext(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
+  res := s.getDB(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
