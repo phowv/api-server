@@ -37,7 +37,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		jsonMetadata := r.FormValue("metadata")
 
-		var metadata service.PhotoMetadata
+		var metadata service.SavePhotoInputMetadata
 		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
@@ -103,6 +103,11 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			if errors.Is(err, service.ErrUserQuotaIsNotEnough) {
 				render.Status(r, http.StatusForbidden)
 				render.JSON(w, r, response.Error("quota is not enough"))
+				return
+
+			} else if errors.Is(err, service.ErrTagDoesNotExists) {
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("tag does not exists"))
 				return
 			}
 

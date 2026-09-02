@@ -1,0 +1,125 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/storage"
+	"photo-viewer-server/internal/storage/entity"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
+)
+
+var (
+	ErrTagDoesNotExists = errors.New("tag doesn't exists")
+)
+
+type TagSmallInfo struct {
+	TagUuid uuid.UUID `json:"tag_uuid"`
+	TagName string `json:"tag_name"`
+}
+
+type TagInfo struct {
+	TagSmallInfo
+	TagDescription string `json:"tag_description"`
+}
+
+type SaveTagInput struct {
+	TagName string `json:"tag_name"`
+	TagDescription string `json:"tag_description"`
+}
+
+type TagRepo interface {
+	SaveTag(ctx context.Context, tag *entity.Tag) (uuid.UUID, error)
+	GetTag(ctx context.Context, uuid uuid.UUID) (*entity.Tag, error)
+	GetAllTags(ctx context.Context) ([]entity.Tag, error)
+	GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error)
+	GetTagByName(ctx context.Context, tagName string) (*entity.Tag, error)
+}
+
+type TagService struct {
+	log *slog.Logger
+	tagRepo TagRepo
+	txManager storage.TxManager
+}
+
+func NewTagService(log *slog.Logger, tagRepo TagRepo, txManager storage.TxManager) *TagService {
+	return &TagService{
+		log: log,
+		tagRepo: tagRepo,
+		txManager: txManager,
+	}
+}
+
+func (s *TagService) SaveTag(ctx context.Context, tagInput SaveTagInput) (uuid.UUID, error) {
+	lg := s.log.With(
+		slog.String("op", "service.SaveTag"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	var tagUuid uuid.UUID
+
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		newTag := entity.Tag{
+			Name: tagInput.TagName,
+			Description: tagInput.TagDescription,
+		}
+
+		var err error
+
+		tagUuid, err = s.tagRepo.SaveTag(txCtx, &newTag)
+
+		if err != nil {
+			return fmt.Errorf("failed to save tag: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		lg.Error("error save tag", sl.Err(err))
+
+		return uuid.Nil, fmt.Errorf("error save tag: %w", err)
+	}
+
+	return tagUuid, nil
+}
+
+func (s *TagService) GetTags(ctx context.Context, photoUuid uuid.UUID) ([]TagInfo, error) {
+	lg := s.log.With(
+		slog.String("op", "service.GetTags"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	var tagsEntities []entity.Tag
+	var err error
+
+	if photoUuid == uuid.Nil {
+		tagsEntities, err = s.tagRepo.GetAllTags(ctx)
+	} else {
+		tagsEntities, err = s.tagRepo.GetTagsByPhoto(ctx, photoUuid)
+	}
+
+	if err != nil {
+		lg.Error("failed to get all tags", sl.Err(err))
+
+		return nil, fmt.Errorf("failed to get all tags: %w", err)
+	}
+
+	tagsInfo := make([]TagInfo, len(tagsEntities))
+
+	for i, tagEntity := range tagsEntities {
+		tagsInfo[i] = TagInfo{
+			TagSmallInfo: TagSmallInfo{
+				TagUuid: tagEntity.TagUuid,
+				TagName: tagEntity.Name,
+			},
+			TagDescription: tagEntity.Description,
+		}
+	}
+
+	return tagsInfo, nil
+}

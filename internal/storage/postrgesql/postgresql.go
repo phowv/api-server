@@ -17,7 +17,9 @@ func New(host string, port int, dbname string, user string, password string) (*S
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
 		host, user, password, dbname, port)
 
-	db, err := gorm.Open(postgres.Open(dsn))
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		TranslateError: true,
+	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)

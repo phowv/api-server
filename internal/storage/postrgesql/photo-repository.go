@@ -20,10 +20,31 @@ func NewPhotoRepository(st *Storage) *PhotoRepository {
 }
 
 func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error) {
-	err := s.getDB(ctx).Create(photo).Error
+	err := s.getDB(ctx).Omit("Tags").Create(photo).Error
 
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("error persist photo entity: %w", err)
+	}
+
+	if len(photo.Tags) > 0 {
+		photoTagEntities := make([]entity.PhotoTagEntity, len(photo.Tags))
+
+		for i, tag := range photo.Tags {
+			photoTagEntities[i] = entity.PhotoTagEntity{
+				PhotoUuid: photo.PhotoUuid,
+				TagUuid: tag.TagUuid,
+			}
+		}
+
+		err = s.getDB(ctx).Table(entity.PhotoTagEntity{}.TableName()).Create(&photoTagEntities).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrForeignKeyViolated) {
+				return uuid.Nil, storage.ErrTagNotFound
+			}
+
+			return uuid.Nil, fmt.Errorf("error add relation photo with tag: %w", err)
+		}
 	}
 
 	return photo.PhotoUuid, nil
@@ -32,7 +53,7 @@ func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (u
 func (s *PhotoRepository) GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error) {
 	var photo entity.Photo
 
-	err := s.getDB(ctx).First(&photo, uuid).Error
+	err := s.getDB(ctx).Preload("Tags").First(&photo, uuid).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -48,7 +69,7 @@ func (s *PhotoRepository) GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity
 func (s *PhotoRepository) GetAllPhotos(ctx context.Context) ([]entity.Photo, error) {
 	var photos []entity.Photo
 
-	err := s.db.Find(&photos).Error
+	err := s.db.Preload("Tags").Find(&photos).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("error get photos: %w", err)
@@ -60,7 +81,7 @@ func (s *PhotoRepository) GetAllPhotos(ctx context.Context) ([]entity.Photo, err
 func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
 	var photos []entity.Photo
 
-	err := s.db.Where("owner_uuid = ?", ownerUuid).Find(&photos).Error
+	err := s.db.Preload("Tags").Where("owner_uuid = ?", ownerUuid).Find(&photos).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("error get photos by owner: %w", err)
@@ -95,4 +116,80 @@ func (s *PhotoRepository) UpdatePhoto(ctx context.Context, uuid uuid.UUID, owner
 	}
 
 	return nil
+}
+
+func (s *PhotoRepository) SaveTag(ctx context.Context, tag *entity.Tag) (uuid.UUID, error) {
+	err := s.getDB(ctx).Create(tag).Error
+
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("error persist tag entity: %w", err)
+	}
+
+	return tag.TagUuid, nil
+}
+
+func (s *PhotoRepository) GetTag(ctx context.Context, tagUuid uuid.UUID) (*entity.Tag, error) {
+	var tag entity.Tag
+
+	err := s.getDB(ctx).First(&tag, tagUuid).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrPhotoNotFound
+		}
+
+		return nil, fmt.Errorf("error get tag: %w", err)
+	}
+
+	return &tag, nil
+}
+
+func (s *PhotoRepository) DeleteTag(ctx context.Context, tagUuid uuid.UUID) error {
+	err := s.db.Delete(entity.Tag{}, tagUuid).Error
+
+	if err != nil {
+		return fmt.Errorf("error delete tag: %w", err)
+	}
+
+	return nil
+}
+
+func (s *PhotoRepository) GetAllTags(ctx context.Context) ([]entity.Tag, error) {
+	var tags []entity.Tag
+
+	err := s.getDB(ctx).Find(&tags).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get tags: %w", err)
+	}
+
+	return tags, nil
+}
+
+func (s *PhotoRepository) GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error) {
+	var tags []entity.Tag
+
+	err := s.getDB(ctx).Joins("JOIN photo_tags ON photo_tags.tag_uuid = tag.tag_uuid").Where("photo_tags.photo_uuid = ?", photoUuid).Find(&tags).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get tags by photo uuid: %w", err)
+	}
+
+	return tags, nil
+}
+
+func (s *PhotoRepository) GetTagByName(ctx context.Context, tagName string) (*entity.Tag, error) {
+	var tag entity.Tag
+
+	err := s.getDB(ctx).Where("tag_name = ?", tagName).First(&tag).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrPhotoNotFound
+		}
+
+		return nil, fmt.Errorf("error get tag by name: %w", err)
+	}
+
+	return &tag, nil
 }

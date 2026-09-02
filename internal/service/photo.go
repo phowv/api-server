@@ -34,7 +34,6 @@ const (
 type PhotoMetadata struct {
 	Title string `json:"title"`
 	Description string `json:"description"`
-	Tags string `json:"tags"`
 	CreatedAt time.Time `json:"created_at"`
 	TookAt time.Time `json:"took_at"`
 }
@@ -42,6 +41,7 @@ type PhotoMetadata struct {
 type PhotoInfo struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
 	OwnerLogin string `json:"owner_login"`
+	Tags []TagSmallInfo `json:"tags"`
 	PhotoMetadata
 }
 
@@ -50,8 +50,13 @@ type PhotoWithData struct {
 	Content []byte
 }
 
+type SavePhotoInputMetadata struct {
+	PhotoMetadata
+	TagUuids []uuid.UUID `json:"tag_uuids"`
+}
+
 type SavePhotoInput struct {
-	Metadata PhotoMetadata
+	Metadata SavePhotoInputMetadata
 	Filename string
 	Content []byte
 	ContentType string
@@ -118,10 +123,6 @@ func metadataToMap(m *PhotoMetadata) map[string]any {
 	if m.Description != "" {
 		out["description"] = m.Description
 	}
-
-	if m.Tags != "" {
-		out["tags"] = m.Tags
-	}
 	
 	if !m.CreatedAt.IsZero() {
 		out["created_at"] = m.CreatedAt
@@ -163,6 +164,10 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		err := s.userRepo.DecrementQuotaByUuid(txCtx, ownerUuid)
 
 		if err != nil {
+			if (errors.Is(err, storage.ErrUserQuotaIsNotEnough)) {
+				return ErrUserQuotaIsNotEnough
+			}
+
 			return fmt.Errorf("failed to decrement user's quota: %w", err)
 		}
 
@@ -214,12 +219,20 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		}
 		savedImages = append(savedImages, newSmallFilename)
 
-		log.Info("saved photo", slog.String("filename", rawFilename), slog.String("medium_filename", mediumFilename), slog.String("small_filename", smallFilename))
+		log.Info("saved photo to file storage", slog.String("filename", rawFilename), slog.String("medium_filename", mediumFilename), slog.String("small_filename", smallFilename))
+
+		tags := make([]entity.Tag, len(input.Metadata.TagUuids))
+
+		for i, tagUuid := range input.Metadata.TagUuids {
+			tags[i] = entity.Tag{
+				TagUuid: tagUuid,
+			}
+		}
 
 		photoEntity := entity.Photo{
 			Title: input.Metadata.Title,
 			Description: input.Metadata.Description,
-			Tags: input.Metadata.Tags,
+			Tags: tags,
 			CreatedDate: input.Metadata.CreatedAt,
 			TookAt: input.Metadata.TookAt,
 			RawFilename: rawFilename,
@@ -232,6 +245,12 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 
 		if err != nil {
 			log.Error("error save photo metadata", sl.Err(err))
+
+			if errors.Is(err, storage.ErrTagNotFound) {
+			  cleanup()
+				return ErrTagDoesNotExists
+			}
+
 			cleanup()
 			return fmt.Errorf("error save photo metadata: %w", err)
 		}
@@ -240,6 +259,12 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 	})
 
 	if err != nil {
+		if errors.Is(err, ErrUserQuotaIsNotEnough) {
+			return uuid.Nil, ErrUserQuotaIsNotEnough
+		} else if errors.Is(err, ErrTagDoesNotExists) {
+			return uuid.Nil, ErrTagDoesNotExists
+		}
+
 		return uuid.Nil, fmt.Errorf("failed to transact photo data: %w", err)
 	}
 
@@ -289,13 +314,22 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 			continue
 		}
 
+		photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
+
+		for i, photoEntityTag := range photoEntity.Tags {
+			photoTags[i] = TagSmallInfo{
+				TagUuid: photoEntityTag.TagUuid,
+				TagName: photoEntityTag.Name,
+			}
+		}
+
 		photos[i] = PhotoInfo{
 			PhotoUuid: photoEntity.PhotoUuid,
 			OwnerLogin: user.Login,
+			Tags: photoTags,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
-				Tags: photoEntity.Tags,
 				CreatedAt: photoEntity.CreatedDate,
 				TookAt: photoEntity.TookAt,
 			},
@@ -342,15 +376,24 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, stored
 		return nil, fmt.Errorf("error get photo file: %w", err)
 	}
 
+	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
+
+	for i, photoEntityTag := range photoEntity.Tags {
+		photoTags[i] = TagSmallInfo{
+			TagUuid: photoEntityTag.TagUuid,
+			TagName: photoEntityTag.Name,
+		}
+	}
+
 	photoWithData := &PhotoWithData{
 		Content: rawPhoto,
 		PhotoInfo: PhotoInfo{
 			PhotoUuid: photoEntity.PhotoUuid,
 			OwnerLogin: user.Login,
+			Tags: photoTags,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
-				Tags: photoEntity.Tags,
 				CreatedAt: photoEntity.CreatedDate,
 				TookAt: photoEntity.TookAt,
 			},
@@ -383,13 +426,22 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 		return nil, err
 	}
 
+	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
+
+	for i, photoEntityTag := range photoEntity.Tags {
+		photoTags[i] = TagSmallInfo{
+			TagUuid: photoEntityTag.TagUuid,
+			TagName: photoEntityTag.Name,
+		}
+	}
+
 	photoInfo := PhotoInfo{
 		PhotoUuid: photoEntity.PhotoUuid,
 		OwnerLogin: user.Login,
+		Tags: photoTags,
 		PhotoMetadata: PhotoMetadata{
 			Title: photoEntity.Title,
 			Description: photoEntity.Description,
-			Tags: photoEntity.Tags,
 			CreatedAt: photoEntity.CreatedDate,
 			TookAt: photoEntity.TookAt,
 		},
