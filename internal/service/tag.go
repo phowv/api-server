@@ -104,7 +104,11 @@ func (s *TagService) GetTags(ctx context.Context, photoUuid uuid.UUID) ([]TagInf
 	}
 
 	if err != nil {
-		lg.Error("failed to get all tags", sl.Err(err))
+		lg.Error("failed to get tags", sl.Err(err))
+
+		if errors.Is(err, storage.ErrPhotoNotFound) {
+			return nil, ErrPhotoNotFound
+		}
 
 		return nil, fmt.Errorf("failed to get all tags: %w", err)
 	}

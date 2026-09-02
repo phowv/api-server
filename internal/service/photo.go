@@ -21,6 +21,8 @@ var (
 	PhotoSizeSmall StoredPhotoType = "small"
 	PhotoSizeMedium StoredPhotoType = "medium"
 	PhotoSizeRaw StoredPhotoType = "raw"
+
+	ErrPhotoNotFound = errors.New("photo not found")
 )
 
 const (

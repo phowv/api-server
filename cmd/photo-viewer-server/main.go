@@ -75,6 +75,8 @@ func main() {
 
 	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager)
 
+	tagService := service.NewTagService(log, photoRepository, txManager)
+
 	mailService := mail.NewMailService(cfg)
 
 	userService := service.NewUserService(
@@ -130,6 +132,8 @@ func main() {
 			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
 			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
 			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+
+			r.Get("/tags", view.ViewTags(log, tagService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
@@ -149,6 +153,8 @@ func main() {
 			r.Post("/photos", upload.UploadPhoto(log, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
+
+			r.Post("/tags", upload.UploadTag(log, tagService))
 		})
 	})
 

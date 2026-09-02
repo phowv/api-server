@@ -13,11 +13,6 @@ import (
 	"github.com/go-chi/render"
 )
 
-type Response struct {
-	response.Response
-	Photos []service.PhotoInfo `json:"photos,omitempty"`
-}
-
 func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -26,6 +21,12 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 		)
 
 		ownerLogin := r.URL.Query().Get("owner_login")
+
+		if ownerLogin == "" {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("owner login must be not empty"))
+			return
+		}
 
 		photos, err := photoService.GetPhotos(r.Context(), ownerLogin)
 		if err != nil {

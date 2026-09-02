@@ -169,9 +169,13 @@ func (s *PhotoRepository) GetAllTags(ctx context.Context) ([]entity.Tag, error) 
 func (s *PhotoRepository) GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error) {
 	var tags []entity.Tag
 
-	err := s.getDB(ctx).Joins("JOIN photo_tags ON photo_tags.tag_uuid = tag.tag_uuid").Where("photo_tags.photo_uuid = ?", photoUuid).Find(&tags).Error
+	err := s.getDB(ctx).Joins("JOIN photo.photo_tags ON photo_tags.tag_uuid = tag.tag_uuid").Where("photo_tags.photo_uuid = ?", photoUuid).Find(&tags).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrPhotoNotFound
+		}
+
 		return nil, fmt.Errorf("error get tags by photo uuid: %w", err)
 	}
 
