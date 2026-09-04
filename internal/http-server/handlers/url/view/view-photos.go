@@ -22,12 +22,6 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 
 		ownerLogin := r.URL.Query().Get("owner_login")
 
-		if ownerLogin == "" {
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("owner login must be not empty"))
-			return
-		}
-
 		photos, err := photoService.GetPhotos(r.Context(), ownerLogin)
 		if err != nil {
 			if errors.Is(err, storage.ErrUserNotFound) {
