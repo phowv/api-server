@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -38,7 +39,7 @@ func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 			return
 		}
 
-		if err := validator.New().Struct(tagInfo); err != nil {
+		if err := validatorx.NewValidator().Struct(tagInfo); err != nil {
 			validateErr := err.(validator.ValidationErrors)
 
 			log.Error("error validate request metadata", sl.Err(err))

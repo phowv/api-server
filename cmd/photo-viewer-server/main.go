@@ -61,6 +61,7 @@ func main() {
 	photoRepository := postrgesql.NewPhotoRepository(metadataStorage)
 	userRepository := postrgesql.NewUserRepository(metadataStorage)
 	authRepository := postrgesql.NewAuthReposotory(metadataStorage)
+	accessRepo := postrgesql.NewAccessReposotory(metadataStorage)
 	txManager := postrgesql.NewTransactionManager(metadataStorage)
 
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
@@ -73,7 +74,7 @@ func main() {
 
 	imageProcessor := image.NewProcessor()
 
-	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager)
+	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager, accessRepo)
 
 	tagService := service.NewTagService(log, photoRepository, txManager)
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -48,7 +49,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		log.Info("request metadata decoded", slog.Any("metadata", metadata))
 
-		if err := validator.New().Struct(metadata); err != nil {
+		if err := validatorx.NewValidator().Struct(metadata); err != nil {
 			validateErr := err.(validator.ValidationErrors)
 
 			log.Error("error validate request metadata", sl.Err(err))

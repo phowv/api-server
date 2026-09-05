@@ -32,3 +32,25 @@ type Photo struct {
 func (Photo) TableName() string {
 	return "photo.photo"
 }
+
+func CompareAccessLevels(a AccessModifier, b AccessModifier) int {
+	return a.Int() - b.Int()
+}
+
+func (a AccessModifier) Int() int {
+	switch a {
+		case AccessModifierPrivate: return 3
+		case AccessModifierProtected: return 2
+		case AccessModifierPublic: return 1
+		default: return 3
+	}
+}
+
+func (a AccessModifier) Valid() bool {
+	switch a {
+	case AccessModifierPrivate, AccessModifierProtected, AccessModifierPublic:
+		return true
+	default:
+		return false
+	}
+}

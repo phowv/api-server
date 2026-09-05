@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage"
 
@@ -42,7 +43,7 @@ return func(w http.ResponseWriter, r *http.Request) {
 
 		log.Info("request metadata decoded", slog.Any("metadata", metadata))
 
-		if err := validator.New().Struct(metadata); err != nil {
+		if err := validatorx.NewValidator().Struct(metadata); err != nil {
 			validateErr := err.(validator.ValidationErrors)
 
 			log.Error("error validate request metadata", sl.Err(err))

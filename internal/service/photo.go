@@ -23,6 +23,7 @@ var (
 	PhotoSizeRaw StoredPhotoType = "raw"
 
 	ErrPhotoNotFound = errors.New("photo not found")
+	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
 )
 
 const (
@@ -38,6 +39,7 @@ type PhotoMetadata struct {
 	Description string `json:"description" validate:"max=200"`
 	CreatedAt time.Time `json:"created_at"`
 	TookAt time.Time `json:"took_at"`
+	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
 type PhotoInfo struct {
@@ -86,6 +88,11 @@ type FileRepo interface {
 	CreateBucket(ctx context.Context, bucketName string) error
 }
 
+type AccessRepo interface {
+	GetValidAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) (*entity.PhotoAccessLink, error)
+	IsUserCanAccessPhotoByUuid(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
+}
+
 type ImageProcessor interface {
   ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
 }
@@ -98,9 +105,19 @@ type PhotoService struct {
 	userRepo UserRepo
 	imageProcessor ImageProcessor
 	txManager storage.TxManager
+	accessRepo AccessRepo
 }
 
-func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, bucketName string, userRepo UserRepo, imageProcessor ImageProcessor, txManager storage.TxManager) *PhotoService {
+func NewPhotoService(
+	log *slog.Logger,
+	photoRepo PhotoRepo,
+	fileRepo FileRepo,
+	bucketName string,
+	userRepo UserRepo,
+	imageProcessor ImageProcessor,
+	txManager storage.TxManager,
+	accessReoo AccessRepo,
+) *PhotoService {
 	return &PhotoService{
 		log: log,
 		photoRepo: photoRepo,
@@ -109,6 +126,7 @@ func NewPhotoService(log *slog.Logger, photoRepo PhotoRepo, fileRepo FileRepo, b
 		userRepo: userRepo,
 		imageProcessor: imageProcessor,
 		txManager: txManager,
+		accessRepo: accessReoo,
 	}
 }
 
@@ -241,6 +259,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 			MediumFilename: mediumFilename,
 			SmallFilename: smallFilename,
 			OwnerUuid: ownerUuid,
+			AccessLevel: input.Metadata.AccessLevel,
 		}
 
 		photoUuid, err = s.photoRepo.SavePhoto(ctx, &photoEntity)
@@ -358,6 +377,18 @@ func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, stored
 		return nil, fmt.Errorf("error get photo: %w", err)
 	}
 
+	isPermit, err := s.isPhotoPermit(ctx, photoEntity)
+
+	if err != nil {
+		log.Error("failed to check photo permissions", sl.Err(err))
+		return nil, err
+	}
+
+	if !isPermit {
+		log.Info("photo is not permitted", slog.Any("photo_uuid", photoUuid))
+		return nil, ErrPhotoIsNotPermitted
+	}
+
 	user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
 	if err != nil {
 		log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
@@ -420,6 +451,18 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 
 		log.Error("error get photo", sl.Err(err))
 		return nil, fmt.Errorf("error get photo: %w", err)
+  }
+
+	isPermit, err := s.isPhotoPermit(ctx, photoEntity)
+
+	if err != nil {
+		log.Error("failed to check photo permissions", sl.Err(err))
+		return nil, err
+	}
+
+	if !isPermit {
+		log.Info("photo is not permitted", slog.Any("photo_uuid", photoUuid))
+		return nil, ErrPhotoIsNotPermitted
 	}
 
 	user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
@@ -557,4 +600,66 @@ func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID,
 	}
 
 	return nil
+}
+
+func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (bool, error) {
+	log := s.log.With(
+		slog.String("op", "service.isPhotoPermit"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPublic) == 0 {
+		return true, nil
+	}
+
+	requestUserUuid := ctx.Value("user_uuid")
+
+	if requestUserUuid != nil {
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type ")
+			return false, errors.ErrUnsupported
+		}
+
+		if photo.OwnerUuid == userUuid {
+			return true, nil
+		}
+
+		if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+			return false, nil
+		}
+
+		canAccess, err := s.accessRepo.IsUserCanAccessPhotoByUuid(ctx, photo.PhotoUuid, userUuid)
+
+		if err != nil {
+			log.Error("failed to check user acces to photo", sl.Err(err))
+			return false, fmt.Errorf("failed to check user acces to photo: %w", err)
+		}
+
+		if canAccess {
+			return true, nil
+		}
+	}
+
+	requestAccessKey := ctx.Value("access_key")
+
+	if requestAccessKey != nil {
+		accessKey, ok := requestAccessKey.(string)
+		if !ok {
+			return false, errors.ErrUnsupported
+		}
+
+		accessLink, err := s.accessRepo.GetValidAccessLinkByPhotoUuid(ctx, photo.PhotoUuid)
+		if err != nil {
+			log.Error("failed to get access link", sl.Err(err))
+			return false, fmt.Errorf("failed to get access link: %w", err)
+		}
+		if comparePasswords(accessKey, accessLink.HashCode) {
+			return true, nil
+		}
+	}
+
+	log.Error("photo access denied")
+
+	return false, nil
 }
