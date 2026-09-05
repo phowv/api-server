@@ -15,6 +15,7 @@ import (
 	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
+	omitemptyjwtmw "photo-viewer-server/internal/http-server/middleware/omitempty-jwt-mw"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
 	"photo-viewer-server/internal/lib/image"
 	"photo-viewer-server/internal/lib/mail"
@@ -128,11 +129,6 @@ func main() {
 	router.Route("/api/v1", func(apiv1Router chi.Router) {
 		apiv1Router.Group(func(r chi.Router) {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
-			r.Get("/photos", view.ViewPhotos(log, photoService))
-			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, service.PhotoSizeRaw))
-			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
-			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
-			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 
 			r.Get("/tags", view.ViewTags(log, tagService))
 		})
@@ -145,6 +141,16 @@ func main() {
 			r.Post("/auth/login", auth.LoginUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
 			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
 			r.Post("/auth/verify", auth.VerifyUser(log, userService))
+		})
+
+		apiv1Router.Group(func(r chi.Router) {
+			r.Use(omitemptyjwtmw.New(cfg.JwtAccessSecret))
+
+			r.Get("/photos", view.ViewPhotos(log, photoService))
+			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, service.PhotoSizeRaw))
+			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
+			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
+			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

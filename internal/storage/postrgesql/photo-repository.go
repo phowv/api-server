@@ -78,10 +78,23 @@ func (s *PhotoRepository) GetAllPhotos(ctx context.Context) ([]entity.Photo, err
 	return photos, nil
 }
 
-func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
+func (s *PhotoRepository) GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
 	var photos []entity.Photo
 
 	err := s.db.Preload("Tags").Where("access_level = ?", "public").Where("owner_uuid = ?", ownerUuid).Find(&photos).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get photos by owner: %w", err)
+	}
+
+	return photos, nil
+}
+
+
+func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
+	var photos []entity.Photo
+
+	err := s.db.Preload("Tags").Where("owner_uuid = ?", ownerUuid).Find(&photos).Error
 
 	if err != nil {
 		return nil, fmt.Errorf("error get photos by owner: %w", err)

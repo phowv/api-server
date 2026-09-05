@@ -75,6 +75,7 @@ type imageWithType struct {
 type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
+  GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
   GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
 	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
@@ -151,6 +152,8 @@ func metadataToMap(m *PhotoMetadata) map[string]any {
 	if !m.TookAt.IsZero() {
 		out["took_at"] = m.TookAt
 	}
+
+	out["access_level"] = m.AccessLevel
 
 	return out
 }
@@ -317,7 +320,19 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 			return nil, fmt.Errorf("failed to get all photos: %w", err)
 		}
 
-		photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
+		requestUserUuid := ctx.Value("user_uuid")
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+
+		log.Debug("getting photos list", slog.Any("request_user_uuid", userUuid), slog.Any("user_uuid", user.UserUuid))
+
+		if ok {
+			if userUuid == user.UserUuid {
+				log.Debug("get all photos for user", slog.Any("user_uuid", userUuid))
+		  	photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
+			}
+		} else {
+			photoEnities, err = s.photoRepo.GetPhotosByOwner(ctx, user.UserUuid)
+		}
 	}
 
 	if err != nil {
@@ -353,6 +368,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 				Description: photoEntity.Description,
 				CreatedAt: photoEntity.CreatedDate,
 				TookAt: photoEntity.TookAt,
+				AccessLevel: photoEntity.AccessLevel,
 			},
 		}
 	}
