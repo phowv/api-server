@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +22,7 @@ type TagCreateResponse struct {
 func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
-slog.String("op", "handlers.upload.UploadTag"),
+			slog.String("op", "handlers.upload.UploadTag"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
@@ -33,6 +34,16 @@ slog.String("op", "handlers.upload.UploadTag"),
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("invalid metadata"))
+			return
+		}
+
+		if err := validator.New().Struct(tagInfo); err != nil {
+			validateErr := err.(validator.ValidationErrors)
+
+			log.Error("error validate request metadata", sl.Err(err))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.ValidationErrors(validateErr))
 			return
 		}
 

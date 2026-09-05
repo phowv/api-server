@@ -28,8 +28,8 @@ type TagInfo struct {
 }
 
 type SaveTagInput struct {
-	TagName string `json:"tag_name"`
-	TagDescription string `json:"tag_description"`
+	TagName string `json:"tag_name" validate:"required,min=2,max=50"`
+	TagDescription string `json:"tag_description,omitempty" validate:"max=200"`
 }
 
 type TagRepo interface {
