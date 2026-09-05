@@ -16,4 +16,5 @@ var (
 	ErrVerificationCodeNotFound = errors.New("verification code not found")
 	ErrUserQuotaIsNotEnough = errors.New("user quota is not enough")
 	ErrTagNotFound = errors.New("tag not found")
+	ErrTagAlreadyExists = errors.New("tag already exists")
 )

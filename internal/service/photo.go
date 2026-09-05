@@ -34,7 +34,7 @@ const (
 )
 
 type PhotoMetadata struct {
-	Title string `json:"title" validate:"required,min=2,max=50"`
+	Title string `json:"title" validate:"max=50"`
 	Description string `json:"description" validate:"max=200"`
 	CreatedAt time.Time `json:"created_at"`
 	TookAt time.Time `json:"took_at"`

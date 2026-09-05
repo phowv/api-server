@@ -15,6 +15,7 @@ import (
 
 var (
 	ErrTagDoesNotExists = errors.New("tag doesn't exists")
+	ErrTagAlreadyExists = errors.New("tag already exists")
 )
 
 type TagSmallInfo struct {
@@ -73,6 +74,10 @@ func (s *TagService) SaveTag(ctx context.Context, tagInput SaveTagInput) (uuid.U
 		tagUuid, err = s.tagRepo.SaveTag(txCtx, &newTag)
 
 		if err != nil {
+			if errors.Is(err, storage.ErrTagAlreadyExists) {
+				return ErrTagAlreadyExists
+			}
+
 			return fmt.Errorf("failed to save tag: %w", err)
 		}
 
@@ -81,6 +86,10 @@ func (s *TagService) SaveTag(ctx context.Context, tagInput SaveTagInput) (uuid.U
 
 	if err != nil {
 		lg.Error("error save tag", sl.Err(err))
+
+		if errors.Is(err, ErrTagAlreadyExists) {
+			return uuid.Nil, ErrTagAlreadyExists
+		}
 
 		return uuid.Nil, fmt.Errorf("error save tag: %w", err)
 	}

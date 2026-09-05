@@ -2,6 +2,7 @@ package upload
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
@@ -53,6 +54,12 @@ func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 
 		if err != nil {
 			log.Error("failed to save tag", sl.Err(err))
+
+			if errors.Is(err, service.ErrTagAlreadyExists) {
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("tag with this name already exists"))
+				return
+			}
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))

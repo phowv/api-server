@@ -122,6 +122,10 @@ func (s *PhotoRepository) SaveTag(ctx context.Context, tag *entity.Tag) (uuid.UU
 	err := s.getDB(ctx).Create(tag).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return uuid.Nil, storage.ErrTagAlreadyExists
+		}
+
 		return uuid.Nil, fmt.Errorf("error persist tag entity: %w", err)
 	}
 
