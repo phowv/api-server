@@ -15,6 +15,8 @@ import (
 
 var (
 	ErrCollectionAlreadyExists = errors.New("collection already exists")
+	ErrCollectionNotFound = errors.New("collection not found")
+	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
 )
 
 type CollectionMetadata struct {
@@ -28,7 +30,6 @@ type CollectionInfo struct {
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
 	OwnerLogin string `json:"owner_login"`
 	Photos []PhotoSmallInfo `json:"photos"`
-	AccessKey string `json:"access_key"`
 }
 
 type SaveCollectionInputMetadata struct {
@@ -36,22 +37,13 @@ type SaveCollectionInputMetadata struct {
 	PhotoUuids []uuid.UUID `json:"photo_uuids"`
 }
 
-type CollectionRepo interface {
-	SaveCollection(ctx context.Context, collection *entity.Collection) (uuid.UUID, error)
-	GetCollection(ctx context.Context, collectionUuid uuid.UUID) (*entity.Collection, error)
-	GetAllCollections(ctx context.Context) ([]entity.Collection, error)
-	GetCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
-	GetAllCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
-	DeleteCollection(ctx context.Context, collectionUuid, ownerUuid uuid.UUID) error
-	AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error
-	RemovePhotoFromCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error
-}
-
 type CollectionService struct {
 	log *slog.Logger
 	collectionRepo CollectionRepo
 	userRepo UserRepo
 	txManager storage.TxManager
+	accessRepo AccessRepo
+	keySigner PhotoKeySigner
 }
 
 func NewCollectionService(
@@ -59,18 +51,22 @@ func NewCollectionService(
 	collectionRepo CollectionRepo,
 	userRepo UserRepo,
 	txManager storage.TxManager,
+	accessRepo AccessRepo,
+	keySigner PhotoKeySigner,
 ) *CollectionService {
 	return &CollectionService{
 		log: log,
 		collectionRepo: collectionRepo,
 		userRepo: userRepo,
 		txManager: txManager,
+		accessRepo: accessRepo,
+		keySigner: keySigner,
 	}
 }
 
 func (s *CollectionService) SaveCollection(ctx context.Context, input *SaveCollectionInputMetadata, ownerUuid uuid.UUID) (uuid.UUID, error) {
 	log := s.log.With(
-		slog.String("op", "service.SavePhoto"),
+		slog.String("op", "service.SaveCollection"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
@@ -130,4 +126,197 @@ func (s *CollectionService) SaveCollection(ctx context.Context, input *SaveColle
 	}
 
 	return collectionUuid, nil
+}
+
+func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uuid.UUID) (*CollectionInfo, error) {
+	log := s.log.With(
+		slog.String("op", "service.GetCollection"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	collectionEntity, err := s.collectionRepo.GetCollection(ctx, collectionUuid)
+	if err != nil {
+		if errors.Is(err, storage.ErrPhotoNotFound) {
+			log.Error("photo not found", slog.Any("collection_uuid", collectionUuid))
+			return nil, ErrCollectionNotFound
+		}
+
+		log.Error("failed to get collection info", slog.Any("collection_uuid", collectionUuid))
+		return nil, fmt.Errorf("failed to get collection")
+	}
+
+	isPermit, err := s.isCollectionPermit(ctx, collectionEntity)
+
+	if err != nil {
+		log.Error("failed to check photo permissions", sl.Err(err))
+		return nil, err
+	}
+
+	if !isPermit {
+		log.Info("photo is not permitted", slog.Any("collection_uuid", collectionUuid))
+		return nil, ErrCollectionIsNotPermitted
+	}
+
+	user, err := s.userRepo.GetUserByUuid(ctx, collectionEntity.OwnerUuid)
+	if err != nil {
+		log.Error("failed to get photo owner", sl.Err(err), slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
+		return nil, fmt.Errorf("failed to get owner")
+	}
+
+	photosInfo := make([]PhotoSmallInfo, 0)
+
+	for _, photoEntity := range collectionEntity.Photos {
+		isPhotoPermit, err := s.isPhotoPermitInCollection(ctx, collectionEntity, &photoEntity)
+
+		if err != nil {
+			log.Error("faild to check photo permissions in collection", sl.Err(err))
+			continue
+		}
+		if !isPhotoPermit {
+			log.Debug("photo is not permitted in coillection")
+			continue
+		}
+	
+		accessKey, err := s.keySigner.Sign(
+			photoEntity.PhotoUuid,
+			photoEntity.OwnerUuid,
+			photoEntity.RawFilename,
+			photoEntity.MediumFilename,
+			photoEntity.SmallFilename,
+		)
+
+		photosInfo = append(photosInfo, PhotoSmallInfo{
+			PhotoUuid: photoEntity.PhotoUuid,
+			AccessKey: accessKey,
+		})
+	}
+
+	return &CollectionInfo{
+		CollectionUuid: collectionEntity.CollectionUuid,
+		OwnerLogin: user.Login,
+		Photos: photosInfo,
+		CollectionMetadata: CollectionMetadata{
+			Title: collectionEntity.Title,
+			Description: collectionEntity.Description,
+			AccessLevel: collectionEntity.AccessLevel,
+		},
+	}, nil
+}
+
+func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
+	log := s.log.With(
+		slog.String("op", "service.isPhotoPermitInCollection"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPublic) == 0 {
+		return true, nil
+	}
+
+	requestUserUuid := ctx.Value("user_uuid")
+
+	if requestUserUuid != nil {
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type ")
+			return false, errors.ErrUnsupported
+		}
+
+		if photo.OwnerUuid == userUuid {
+			return true, nil
+		}
+
+		if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+			return false, nil
+		}
+
+		canAccess, err := s.accessRepo.IsUserCanAccessPhotoByUuid(ctx, photo.PhotoUuid, userUuid)
+
+		if err != nil {
+			log.Error("failed to check user acces to photo", sl.Err(err))
+			return false, fmt.Errorf("failed to check user acces to photo: %w", err)
+		}
+
+		if canAccess {
+			return true, nil
+		}
+	}
+
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+		return false, nil
+	}
+
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierProtected)== 0 &&
+	   entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierProtected) == 0 {
+		return true, nil
+	}		
+
+	log.Error("photo in collection access denied")
+	return false, nil
+}
+
+func (s *CollectionService) isCollectionPermit(ctx context.Context, collection *entity.Collection) (bool, error) {
+	log := s.log.With(
+		slog.String("op", "service.isPhotoPermit"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	if entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierPublic) == 0 {
+		return true, nil
+	}
+
+	requestUserUuid := ctx.Value("user_uuid")
+
+	if requestUserUuid != nil {
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type ")
+			return false, errors.ErrUnsupported
+		}
+
+		if collection.OwnerUuid == userUuid {
+			return true, nil
+		}
+
+		if entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+			return false, nil
+		}
+
+		canAccess, err := s.accessRepo.IsUserCanAccessCollectionByUuid(ctx, collection.CollectionUuid, userUuid)
+
+		if err != nil {
+			log.Error("failed to check user acces to photo", sl.Err(err))
+			return false, fmt.Errorf("failed to check user acces to photo: %w", err)
+		}
+
+		if canAccess {
+			return true, nil
+		}
+	}
+
+	if entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+		return false, nil
+	}
+
+	requestAccessKey := ctx.Value("collection_access_secret")
+
+	if requestAccessKey != nil {
+		accessKey, ok := requestAccessKey.(string)
+		if !ok {
+			return false, errors.ErrUnsupported
+		}
+
+		accessLink, err := s.accessRepo.GetValidAccessLinkByCollectionUuid(ctx, collection.CollectionUuid)
+		if err != nil {
+			log.Error("failed to get access link", sl.Err(err))
+			return false, fmt.Errorf("failed to get access link: %w", err)
+		}
+		if comparePasswords(accessKey, accessLink.HashCode) {
+			return true, nil
+		}
+	}
+
+	log.Error("collection access denied")
+
+	return false, nil
 }

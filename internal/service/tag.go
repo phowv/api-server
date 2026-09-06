@@ -33,14 +33,6 @@ type SaveTagInput struct {
 	TagDescription string `json:"tag_description,omitempty" validate:"max=200"`
 }
 
-type TagRepo interface {
-	SaveTag(ctx context.Context, tag *entity.Tag) (uuid.UUID, error)
-	GetTag(ctx context.Context, uuid uuid.UUID) (*entity.Tag, error)
-	GetAllTags(ctx context.Context) ([]entity.Tag, error)
-	GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error)
-	GetTagByName(ctx context.Context, tagName string) (*entity.Tag, error)
-}
-
 type TagService struct {
 	log *slog.Logger
 	tagRepo TagRepo

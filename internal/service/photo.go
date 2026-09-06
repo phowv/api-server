@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"photo-viewer-server/internal/lib/logger/sl"
-	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
 	"time"
@@ -73,37 +72,6 @@ type imageWithType struct {
 	name string
 	content []byte
 	contentType string
-}
-
-type PhotoRepo interface {
-	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
-	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
-  GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
-  GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
-	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
-	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
-  UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
-}
-
-type FileRepo interface {
-	SaveFile(ctx context.Context, bucketName string, objectName string, data []byte, contentType string) (string, error)
-	GetFile(ctx context.Context, bucketName string, objectName string) ([]byte, string, error)
-	DeleteFile(ctx context.Context, bucketName string, objectName string) error
-	CreateBucket(ctx context.Context, bucketName string) error
-}
-
-type AccessRepo interface {
-	GetValidAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) (*entity.PhotoAccessLink, error)
-	IsUserCanAccessPhotoByUuid(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
-}
-
-type ImageProcessor interface {
-  ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
-}
-
-type PhotoKeySigner interface {
-  Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
-	Validate(token string, expectedPhotoUuid uuid.UUID) (*signer.FileKeyPayload, error)
 }
 
 type PhotoService struct {
@@ -636,6 +604,10 @@ func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (
 		if canAccess {
 			return true, nil
 		}
+	}
+
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+		return false, nil
 	}
 
 	requestAccessKey := ctx.Value("photo_access_secret")

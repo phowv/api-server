@@ -5,11 +5,6 @@ import (
 	"fmt"
 )
 
-type Healthchecker interface {
-	Name() string
-	Ping(ctx context.Context) error
-}
-
 type HealthcheckService struct {
 	chekcers []Healthchecker
 }

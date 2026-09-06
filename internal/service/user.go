@@ -29,29 +29,6 @@ const (
 	minimalPasswordLength = 8
 )
 
-type UserRepo interface {
-	CreateUser(ctx context.Context, user *entity.User) (uuid.UUID, error)
-	GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error)
-	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
-	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
-	DeleteUser(ctx context.Context, uuid uuid.UUID) error
-	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
-	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
-	DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
-}
-
-type SessionRepo interface {
-	SaveSession(ctx context.Context, refreshToken *entity.Session) (uuid.UUID, error)
-	GetValidSessionByUuid(ctx context.Context, session uuid.UUID) (*entity.Session, error)
-	RevokeSessionByUuid(ctx context.Context, sessionUuid uuid.UUID) error
-}
-
-type VerificationCodeRepo interface {
-	SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error
-	DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error
-  GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
-}
-
 type UserData struct {
 	Login string `json:"login"`
 	Email string `json:"email"`

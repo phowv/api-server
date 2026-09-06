@@ -103,6 +103,8 @@ func main() {
 		collectionRepo,
 		userRepository,
 		txManager,
+		accessRepo,
+		keySigner,
 	)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
@@ -161,6 +163,8 @@ func main() {
 			r.Get("/photos", view.ViewPhotos(log, photoService))
 			r.Get("/photo/{photo_uuid}/file", view.ViewPhoto(log, photoService))
 			r.Get("/photo/{photo_uuid}", view.ViewPhotoInfo(log, photoService))
+
+			r.Get("/collection/{collection_uuid}", view.ViewCollection(log, collectionService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

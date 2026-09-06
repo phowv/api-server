@@ -36,7 +36,7 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 
 		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
-			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
+			log.Error("failed to convert photo uuid str to uuid", slog.String("photo_id_str", photoIdStr))
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("invalid request"))
