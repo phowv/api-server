@@ -23,4 +23,6 @@ var (
 	ErrTagAlreadyExists = errors.New("tag already exists")
 
 	ErrAccessLinkNotFound = errors.New("access link not found")
+
+	ErrCollectionNotFound = errors.New("collection not found")
 )

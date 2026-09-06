@@ -7,7 +7,7 @@ import (
 )
 
 type PhotoAccessLink struct {
-	PhotoUuid 	uuid.UUID `gorm:"column:photo_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
+	PhotoUuid 	uuid.UUID `gorm:"column:photo_uuid;primaryKey;type:uuid"`
 	HashCode 	string			`gorm:"column:hash_code"`
 	CreatedAt 	time.Time `gorm:"column:created_at"`
 	EpiresAt 	time.Time 	`gorm:"column:expires_at"`
