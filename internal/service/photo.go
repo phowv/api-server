@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
 	"time"
@@ -22,6 +23,7 @@ var (
 	PhotoSizeMedium StoredPhotoType = "medium"
 	PhotoSizeRaw StoredPhotoType = "raw"
 
+	ErrInvalidPhotoSize = errors.New("invalid photo size")
 	ErrPhotoNotFound = errors.New("photo not found")
 	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
 )
@@ -46,12 +48,8 @@ type PhotoInfo struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
 	OwnerLogin string `json:"owner_login"`
 	Tags []TagSmallInfo `json:"tags"`
+	AccessKey string `json:"access_key"`
 	PhotoMetadata
-}
-
-type PhotoWithData struct {
-	PhotoInfo
-	Content []byte
 }
 
 type SavePhotoInputMetadata struct {
@@ -98,6 +96,11 @@ type ImageProcessor interface {
   ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
 }
 
+type PhotoKeySigner interface {
+  Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
+	Validate(token string, expectedPhotoUuid uuid.UUID) (*signer.FileKeyPayload, error)
+}
+
 type PhotoService struct {
 	log *slog.Logger
 	photoRepo PhotoRepo
@@ -107,6 +110,7 @@ type PhotoService struct {
 	imageProcessor ImageProcessor
 	txManager storage.TxManager
 	accessRepo AccessRepo
+	keySigner PhotoKeySigner
 }
 
 func NewPhotoService(
@@ -118,6 +122,7 @@ func NewPhotoService(
 	imageProcessor ImageProcessor,
 	txManager storage.TxManager,
 	accessReoo AccessRepo,
+	keySigner PhotoKeySigner,
 ) *PhotoService {
 	return &PhotoService{
 		log: log,
@@ -128,6 +133,7 @@ func NewPhotoService(
 		imageProcessor: imageProcessor,
 		txManager: txManager,
 		accessRepo: accessReoo,
+		keySigner: keySigner,
 	}
 }
 
@@ -346,7 +352,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 	for i, photoEntity := range photoEnities {
 		user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
 		if err != nil {
-			log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+			log.Error("failed to get photo owner", sl.Err(err), slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
 			continue
 		}
 
@@ -359,10 +365,19 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 			}
 		}
 
+		accessKey, err := s.keySigner.Sign(
+			photoEntity.PhotoUuid,
+			photoEntity.OwnerUuid,
+			photoEntity.RawFilename,
+			photoEntity.MediumFilename,
+			photoEntity.SmallFilename,
+		)
+
 		photos[i] = PhotoInfo{
 			PhotoUuid: photoEntity.PhotoUuid,
 			OwnerLogin: user.Login,
 			Tags: photoTags,
+			AccessKey: accessKey,
 			PhotoMetadata: PhotoMetadata{
 				Title: photoEntity.Title,
 				Description: photoEntity.Description,
@@ -376,85 +391,37 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 	return photos, nil
 }
 
-func (s *PhotoService) GetPhoto(ctx context.Context, photoUuid uuid.UUID, storedType StoredPhotoType) (*PhotoWithData, error) {
+func (s *PhotoService) GetPhotoFile(ctx context.Context, photoUuid uuid.UUID, accessKey string, photoSize StoredPhotoType) ([]byte, error) {
 	log := s.log.With(
-		slog.String("op", "service.GetPhoto"),
+		slog.String("op", "service.GetPhotoFile"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
-	photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
+	photoKeyPayload, err := s.keySigner.Validate(accessKey, photoUuid)
 	if err != nil {
-		if errors.Is(err, storage.ErrPhotoNotFound) {
-			log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
-			return nil, err
-		}
-
-		log.Error("error get photo", sl.Err(err))
-		return nil, fmt.Errorf("error get photo: %w", err)
+		log.Error("failed to validate access key", sl.Err(err))
+		return nil, fmt.Errorf("failed to validate access key")
 	}
 
-	isPermit, err := s.isPhotoPermit(ctx, photoEntity)
-
-	if err != nil {
-		log.Error("failed to check photo permissions", sl.Err(err))
-		return nil, err
-	}
-
-	if !isPermit {
-		log.Info("photo is not permitted", slog.Any("photo_uuid", photoUuid))
-		return nil, ErrPhotoIsNotPermitted
-	}
-
-	user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
-	if err != nil {
-		log.Error("failed to get photo owner", slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
-		return nil, err
-	}
-
-	filename := photoEntity.RawFilename
-	switch storedType {
-	case PhotoSizeSmall: filename = photoEntity.SmallFilename
-	case PhotoSizeMedium: filename = photoEntity.MediumFilename
-	case PhotoSizeRaw: filename = photoEntity.RawFilename
+	filename := photoKeyPayload.PhotoRawFile
+	switch photoSize {
+		case PhotoSizeSmall: filename = photoKeyPayload.PhotoSmallFile
+		case PhotoSizeMedium: filename = photoKeyPayload.PhotoMediumFile
+		case PhotoSizeRaw: filename = photoKeyPayload.PhotoRawFile
 	}
 	
-
-	rawPhoto, _, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), filename)
+	rawPhoto, _, err := s.fileRepo.GetFile(ctx, photoKeyPayload.OwnerUuid.String(), filename)
 	if err != nil {
 		log.Error("error get photo file", sl.Err(err), slog.String("filename", filename))
 		return nil, fmt.Errorf("error get photo file: %w", err)
 	}
 
-	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
-
-	for i, photoEntityTag := range photoEntity.Tags {
-		photoTags[i] = TagSmallInfo{
-			TagUuid: photoEntityTag.TagUuid,
-			TagName: photoEntityTag.Name,
-		}
-	}
-
-	photoWithData := &PhotoWithData{
-		Content: rawPhoto,
-		PhotoInfo: PhotoInfo{
-			PhotoUuid: photoEntity.PhotoUuid,
-			OwnerLogin: user.Login,
-			Tags: photoTags,
-			PhotoMetadata: PhotoMetadata{
-				Title: photoEntity.Title,
-				Description: photoEntity.Description,
-				CreatedAt: photoEntity.CreatedDate,
-				TookAt: photoEntity.TookAt,
-			},
-		},
-	}
-
-	return photoWithData, nil
+	return rawPhoto, nil
 }
 
 func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*PhotoInfo, error) {
 	log := s.log.With(
-		slog.String("op", "service.GetPhoto"),
+		slog.String("op", "service.GetPhotoInfo"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
@@ -487,6 +454,14 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 		return nil, err
 	}
 
+	accessKey, err := s.keySigner.Sign(
+		photoEntity.PhotoUuid,
+		photoEntity.OwnerUuid,
+		photoEntity.RawFilename,
+		photoEntity.MediumFilename,
+		photoEntity.SmallFilename,
+	)
+
 	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
 
 	for i, photoEntityTag := range photoEntity.Tags {
@@ -500,6 +475,7 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 		PhotoUuid: photoEntity.PhotoUuid,
 		OwnerLogin: user.Login,
 		Tags: photoTags,
+		AccessKey: accessKey,
 		PhotoMetadata: PhotoMetadata{
 			Title: photoEntity.Title,
 			Description: photoEntity.Description,
@@ -657,7 +633,7 @@ func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (
 		}
 	}
 
-	requestAccessKey := ctx.Value("access_key")
+	requestAccessKey := ctx.Value("photo_access_secret")
 
 	if requestAccessKey != nil {
 		accessKey, ok := requestAccessKey.(string)
@@ -678,4 +654,13 @@ func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (
 	log.Error("photo access denied")
 
 	return false, nil
+}
+
+func StringToStoredPhotoType(value string) (StoredPhotoType, error) {
+	switch value {
+		case string(PhotoSizeRaw): return PhotoSizeRaw, nil
+		case string(PhotoSizeMedium): return PhotoSizeMedium, nil
+		case string(PhotoSizeSmall): return PhotoSizeSmall, nil
+	}
+	return "", ErrInvalidPhotoSize
 }

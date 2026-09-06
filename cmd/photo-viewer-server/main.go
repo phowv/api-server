@@ -20,6 +20,7 @@ import (
 	"photo-viewer-server/internal/lib/image"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
+	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
@@ -40,6 +41,7 @@ func main() {
 	cfg := config.MustLoad()
 
 	isDevEnv := cfg.AppEnv == appEnvDev
+	fileAccessExpires := time.Hour
 
 	log := setupLogger(cfg.AppEnv)
 
@@ -71,11 +73,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, fileAccessExpires)
+
 	image.Initialize()
 
 	imageProcessor := image.NewProcessor()
 
-	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager, accessRepo)
+	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager, accessRepo, keySigner)
 
 	tagService := service.NewTagService(log, photoRepository, txManager)
 
@@ -147,10 +151,8 @@ func main() {
 			r.Use(omitemptyjwtmw.New(cfg.JwtAccessSecret))
 
 			r.Get("/photos", view.ViewPhotos(log, photoService))
-			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, service.PhotoSizeRaw))
-			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
-			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
-			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+			r.Get("/photo/{photo_uuid}/file", view.ViewPhoto(log, photoService))
+			r.Get("/photo/{photo_uuid}", view.ViewPhotoInfo(log, photoService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

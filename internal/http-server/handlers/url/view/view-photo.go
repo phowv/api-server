@@ -1,7 +1,6 @@
 package view
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, photoType service.StoredPhotoType) http.HandlerFunc {
+func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.view.ViewPhotos"),
@@ -33,7 +32,33 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, photoType se
 		}
 
 		accessKey := r.URL.Query().Get("access_key")
-		r.WithContext(context.WithValue(r.Context(), "access_key", accessKey))
+		photoSizeStr := r.URL.Query().Get("photo_size")
+
+		if accessKey == "" {
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("access token is empty"))
+			return
+		}
+
+		photoSize := service.PhotoSizeRaw
+		var err error
+
+		if photoSizeStr != "" {
+			photoSize, err = service.StringToStoredPhotoType(photoSizeStr)
+			if err != nil {
+				log.Error("failed to convert photo size to stored photo type", slog.String("photo_size", photoSizeStr))
+
+				if errors.Is(err, service.ErrInvalidPhotoSize) {
+					render.Status(r, http.StatusBadRequest)
+					render.JSON(w, r, response.Error("invalid photo size"))
+					return
+				}
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("invalid request"))
+				return
+			}
+		}
 
 		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
@@ -44,7 +69,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, photoType se
 			return
 		}
 
-		rawPhoto, err := photoService.GetPhoto(r.Context(), photoUuid, photoType)
+		rawPhoto, err := photoService.GetPhotoFile(r.Context(), photoUuid, accessKey, photoSize)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Info("photo not found", slog.Any("photo_uuid", photoUuid))
@@ -68,7 +93,7 @@ func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService, photoType se
 
 		w.Header().Set("Content-Type", "image/jpeg")
 		w.WriteHeader(http.StatusOK)
-		_, err = w.Write(rawPhoto.Content)
+		_, err = w.Write(rawPhoto)
 		if err != nil {
 			log.Error("failed to write photo content", sl.Err(err))
 		}
