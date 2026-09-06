@@ -25,4 +25,5 @@ var (
 	ErrAccessLinkNotFound = errors.New("access link not found")
 
 	ErrCollectionNotFound = errors.New("collection not found")
+	ErrCollectionAlreadyExists = errors.New("collection already exists")
 )

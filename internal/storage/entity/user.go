@@ -16,6 +16,7 @@ type User struct {
 	CreateDate					time.Time `gorm:"column:created_at"`
 	IsActive						bool 			`gorm:"column:is_active"`
 	PhotosQuota					int				`gorm:"column:photos_quota"`
+	CollectionsQuota		int				`gorm:"column:collections_quota"`
 }
 
 func (User) TableName() string {

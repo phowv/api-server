@@ -65,6 +65,7 @@ func main() {
 	userRepository := postrgesql.NewUserRepository(metadataStorage)
 	authRepository := postrgesql.NewAuthReposotory(metadataStorage)
 	accessRepo := postrgesql.NewAccessReposotory(metadataStorage)
+	collectionRepo := postrgesql.NewCollectionRepository(metadataStorage)
 	txManager := postrgesql.NewTransactionManager(metadataStorage)
 
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
@@ -95,7 +96,14 @@ func main() {
 		storage,
 		cfg.InitialPhotosQuota,
 		txManager,
-		)
+	)
+
+	collectionService := service.NewCollectionService(
+		log,
+		collectionRepo,
+		userRepository,
+		txManager,
+	)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
@@ -159,11 +167,14 @@ func main() {
 			r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
 			r.Get("/auth/me", auth.GetMe(log, userService))
+
 			r.Post("/photos", upload.UploadPhoto(log, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
 
 			r.Post("/tags", upload.UploadTag(log, tagService))
+
+			r.Post("/collections", upload.UploadCollection(log, collectionService))
 		})
 	})
 

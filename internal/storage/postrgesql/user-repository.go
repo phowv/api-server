@@ -106,8 +106,26 @@ func (s *UserRepository) UpdateUser(ctx context.Context, uuid uuid.UUID, fields 
 	return nil
 }
 
-func (s* UserRepository) DecrementQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
+func (s* UserRepository) DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
 	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ? AND photos_quota > 0", uuid).UpdateColumn("photos_quota", gorm.Expr("photos_quota - 1"))
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrUserNotFound
+		}
+
+		return fmt.Errorf("error update user: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrUserQuotaIsNotEnough
+	}
+
+	return nil
+}
+
+func (s* UserRepository) DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
+	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ? AND collections_quota > 0", uuid).UpdateColumn("collections_quota", gorm.Expr("collections_quota - 1"))
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {

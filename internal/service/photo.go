@@ -52,6 +52,11 @@ type PhotoInfo struct {
 	PhotoMetadata
 }
 
+type PhotoSmallInfo struct {
+	PhotoUuid uuid.UUID `json:"photo_uuid"`
+	AccessKey string `json:"access_key"`
+}
+
 type SavePhotoInputMetadata struct {
 	PhotoMetadata
 	TagUuids []uuid.UUID `json:"tag_uuids"`
@@ -190,7 +195,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 
 	var photoUuid uuid.UUID
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		err := s.userRepo.DecrementQuotaByUuid(txCtx, ownerUuid)
+		err := s.userRepo.DecrementPhotosQuotaByUuid(txCtx, ownerUuid)
 
 		if err != nil {
 			if (errors.Is(err, storage.ErrUserQuotaIsNotEnough)) {

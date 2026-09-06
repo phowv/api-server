@@ -36,7 +36,8 @@ type UserRepo interface {
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
 	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
-	DecrementQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
+	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
+	DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
 }
 
 type SessionRepo interface {

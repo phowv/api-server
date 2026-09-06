@@ -20,9 +20,13 @@ func NewCollectionRepository(st *Storage) *CollectionRepository {
 }
 
 func (s *CollectionRepository) SaveCollection(ctx context.Context, collection *entity.Collection) (uuid.UUID, error) {
-	err := s.getDB(ctx).Create(collection).Error
+	err := s.getDB(ctx).Omit("Photos").Create(collection).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return uuid.Nil, storage.ErrCollectionAlreadyExists
+		}
+
 		return uuid.Nil, fmt.Errorf("error persist collection entity: %w", err)
 	}
 
