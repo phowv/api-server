@@ -146,7 +146,7 @@ func RemovePhotoFromCollection(lg *slog.Logger, collectionService *service.Colle
 			return
 		}
 
-		err = collectionService.AddPhotoToCollection(r.Context(), collectionUuid, photoUuid)
+		err = collectionService.RemovePhotoFromCollection(r.Context(), collectionUuid, photoUuid)
 		if err != nil {
 			if errors.Is(err, service.ErrCollectionNotFound) {
 				render.Status(r, http.StatusNotFound)
