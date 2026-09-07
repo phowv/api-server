@@ -361,7 +361,7 @@ func (s *PhotoService) GetPhotoFile(ctx context.Context, photoUuid uuid.UUID, ac
 	photoKeyPayload, err := s.keySigner.Validate(accessKey, photoUuid)
 	if err != nil {
 		log.Error("failed to validate access key", sl.Err(err))
-		return nil, fmt.Errorf("failed to validate access key")
+		return nil, ErrPhotoIsNotPermitted
 	}
 
 	filename := photoKeyPayload.PhotoRawFile
@@ -401,7 +401,7 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 
 	if err != nil {
 		log.Error("failed to check photo permissions", sl.Err(err))
-		return nil, err
+		return nil, ErrPhotoIsNotPermitted
 	}
 
 	if !isPermit {

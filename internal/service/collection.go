@@ -150,7 +150,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 
 	if err != nil {
 		log.Error("failed to check photo permissions", sl.Err(err))
-		return nil, err
+		return nil, ErrCollectionIsNotPermitted
 	}
 
 	if !isPermit {

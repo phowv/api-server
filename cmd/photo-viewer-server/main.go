@@ -182,7 +182,7 @@ func main() {
 
 			r.Post("/collections", upload.UploadCollection(log, collectionService))
 			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
-			r.Delete("/collection/{collection_uuid}/photos/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
+			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 		})
 	})
 
