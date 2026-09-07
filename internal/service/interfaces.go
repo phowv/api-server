@@ -30,6 +30,9 @@ var (
 	ErrCollectionNotFound = errors.New("collection not found")
 	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
 
+	ErrCollectionActionIsNotPermitted = errors.New("collection action is not permitted")
+	ErrPhotoInCollectionAlreadyExists = errors.New("photo in collection already exists")
+
 	ErrUserNotFound = errors.New("user already exists")
 	ErrUserExists = errors.New("user already exists")
 	ErrUserPasswordTooShort = errors.New("password too short")

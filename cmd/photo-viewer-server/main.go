@@ -105,6 +105,7 @@ func main() {
 		txManager,
 		accessRepo,
 		keySigner,
+		photoRepository,
 	)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
@@ -180,6 +181,8 @@ func main() {
 			r.Post("/tags", upload.UploadTag(log, tagService))
 
 			r.Post("/collections", upload.UploadCollection(log, collectionService))
+			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
+			r.Delete("/collection/{collection_uuid}/photos/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 		})
 	})
 

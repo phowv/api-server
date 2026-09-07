@@ -42,6 +42,7 @@ type CollectionService struct {
 	txManager storage.TxManager
 	accessRepo AccessRepo
 	keySigner PhotoKeySigner
+	photoRepo PhotoRepo
 }
 
 func NewCollectionService(
@@ -51,6 +52,7 @@ func NewCollectionService(
 	txManager storage.TxManager,
 	accessRepo AccessRepo,
 	keySigner PhotoKeySigner,
+	photoRepo PhotoRepo,
 ) *CollectionService {
 	return &CollectionService{
 		log: log,
@@ -59,6 +61,7 @@ func NewCollectionService(
 		txManager: txManager,
 		accessRepo: accessRepo,
 		keySigner: keySigner,
+		photoRepo: photoRepo,
 	}
 }
 
@@ -288,6 +291,132 @@ func (s *CollectionService) GetCollections(ctx context.Context, ownerLogin strin
 	return collections, nil
 }
 
+func (s *CollectionService) AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error {
+	log := s.log.With(
+		slog.String("op", "service.AddPhotoToCollection"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		collectionEntity, err := s.collectionRepo.GetCollection(txCtx, collectionUuid)
+		if err != nil {
+			log.Error("failed get collection for add photo", sl.Err(err))
+
+			if errors.Is(err, storage.ErrCollectionNotFound) {
+				return ErrCollectionNotFound
+			}
+
+			return fmt.Errorf("failed get collection: %w", err)
+		}
+
+		photoEntity, err := s.photoRepo.GetPhoto(txCtx, photoUuid)
+		if err != nil {
+			log.Error("failed get photo for add to collection", sl.Err(err))
+
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				return ErrPhotoNotFound
+			}
+
+			return fmt.Errorf("failed get photo: %w", err)
+		}
+
+		isPermit, err := s.isCollectionPermitToAdd(txCtx, collectionEntity, photoEntity)
+
+		if err != nil {
+			log.Error("add photo to collection is not permitted", sl.Err(err))
+			return fmt.Errorf("add photo to collection is not permitted")
+		}
+
+		if !isPermit {
+			return ErrCollectionActionIsNotPermitted
+		}
+
+		err = s.collectionRepo.AddPhotoToCollection(txCtx, collectionUuid, photoUuid)
+		if err != nil {
+			log.Error("failed to add photo to collection", sl.Err(err))
+
+			if errors.Is(err, storage.ErrPhotoInCollectionAlreadyExists) {
+				return ErrPhotoInCollectionAlreadyExists
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("failed to add photo to collection", sl.Err(err))
+
+		switch err {
+		case ErrCollectionNotFound: return ErrCollectionNotFound
+		case ErrPhotoNotFound: return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
+		case ErrPhotoInCollectionAlreadyExists: return ErrPhotoInCollectionAlreadyExists
+		}
+
+		return fmt.Errorf("failed to add photo to collection")
+	}
+
+	log.Info("add photo to collection", slog.Any("collection_uuid", collectionUuid), slog.Any("photo_uuid", photoUuid))
+	return nil
+}
+
+func (s *CollectionService) RemovePhotoFromCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error {
+	log := s.log.With(
+		slog.String("op", "service.RemovePhotoFromCollection"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		collectionEntity, err := s.collectionRepo.GetCollection(txCtx, collectionUuid)
+		if err != nil {
+			log.Error("failed get collection for add photo", sl.Err(err))
+
+			if errors.Is(err, storage.ErrCollectionNotFound) {
+				return ErrCollectionNotFound
+			}
+
+			return fmt.Errorf("failed get collection: %w", err)
+		}
+
+		isPermit, err := s.isCollectionPermitToRemove(txCtx, collectionEntity)
+
+		if err != nil {
+			log.Error("remove photo from collection is not permitted", sl.Err(err))
+			return fmt.Errorf("remove photo from collection is not permitted")
+		}
+
+		if !isPermit {
+			return ErrCollectionActionIsNotPermitted
+		}
+
+		err = s.collectionRepo.RemovePhotoFromCollection(txCtx, collectionUuid, photoUuid)
+		if err != nil {
+			log.Error("failed to remove photo from collection", sl.Err(err))
+
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				return ErrPhotoNotFound
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("failed to remove photo from collection", sl.Err(err))
+
+		switch err {
+		case ErrCollectionNotFound: return ErrCollectionNotFound
+		case ErrPhotoNotFound: return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
+		}
+
+		return fmt.Errorf("failed to remove photo from collection")
+	}
+
+	log.Info("remove photo from collection", slog.Any("collection_uuid", collectionUuid), slog.Any("photo_uuid", photoUuid))
+	return nil
+}
+
 func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
 	log := s.log.With(
 		slog.String("op", "service.isPhotoPermitInCollection"),
@@ -342,7 +471,7 @@ func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, colle
 
 func (s *CollectionService) isCollectionPermit(ctx context.Context, collection *entity.Collection) (bool, error) {
 	log := s.log.With(
-		slog.String("op", "service.isPhotoPermit"),
+		slog.String("op", "service.isCollectionPermit"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
@@ -355,7 +484,7 @@ func (s *CollectionService) isCollectionPermit(ctx context.Context, collection *
 	if requestUserUuid != nil {
 		userUuid, ok := requestUserUuid.(uuid.UUID)
 		if !ok {
-			log.Error("request user uuid has invalid type ")
+			log.Error("request user uuid has invalid type")
 			return false, errors.ErrUnsupported
 		}
 
@@ -401,7 +530,75 @@ func (s *CollectionService) isCollectionPermit(ctx context.Context, collection *
 		}
 	}
 
-	log.Error("collection access denied")
+	log.Error("collection access denied", slog.Any("collection_uuid", collection.CollectionUuid))
 
 	return false, nil
 }
+
+func (s *CollectionService) isCollectionPermitToAdd(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
+	log := s.log.With(
+		slog.String("op", "service.isCollectionPermitToAdd"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	requestUserUuid := ctx.Value("user_uuid")
+
+	if requestUserUuid != nil {
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type")
+			return false, errors.ErrUnsupported
+		}
+
+		if collection.OwnerUuid == userUuid {
+			return true, nil
+		}
+
+		if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+			return false, nil
+		}
+
+		if entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierPrivate) >= 0 {
+			return false, nil
+		}
+
+		canAccess, err := s.accessRepo.IsUserCanAccessCollectionByUuid(ctx, collection.CollectionUuid, userUuid)
+
+		if err != nil {
+			log.Error("failed to check user acces to photo", sl.Err(err))
+			return false, fmt.Errorf("failed to check user acces to photo: %w", err)
+		}
+
+		if canAccess {
+			return true, nil
+		}
+	}
+
+	log.Error("collection access denied", slog.Any("collection_uuid", collection.CollectionUuid))
+	return false, nil
+}
+
+func (s *CollectionService) isCollectionPermitToRemove(ctx context.Context, collection *entity.Collection) (bool, error) {
+	log := s.log.With(
+		slog.String("op", "service.isCollectionPermitToAdd"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	requestUserUuid := ctx.Value("user_uuid")
+
+	if requestUserUuid != nil {
+		userUuid, ok := requestUserUuid.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type")
+			return false, errors.ErrUnsupported
+		}
+
+		if collection.OwnerUuid == userUuid {
+			return true, nil
+		}
+	}
+
+	log.Error("collection access denied", slog.Any("collection_uuid", collection.CollectionUuid))
+	return false, nil
+}
+

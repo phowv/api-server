@@ -153,6 +153,9 @@ func (s *CollectionRepository) AddPhotoToCollection(ctx context.Context, collect
 	err := s.getDB(ctx).Create(&collectionPhotoEntity).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return storage.ErrPhotoInCollectionAlreadyExists
+		}
 		return fmt.Errorf("error persist collection photo entity: %w", err)
 	}
 
@@ -160,10 +163,18 @@ func (s *CollectionRepository) AddPhotoToCollection(ctx context.Context, collect
 }
 
 func (s *CollectionRepository) RemovePhotoFromCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error {
-	err := s.getDB(ctx).Where("collection_uuid = ?", collectionUuid).Where("photo_uuid = ?", photoUuid).Delete(entity.CollectionPhotoEntity{}).Error
+	res := s.getDB(ctx).Where("collection_uuid = ?", collectionUuid).Where("photo_uuid = ?", photoUuid).Delete(entity.CollectionPhotoEntity{})
 
-	if err != nil {
-		return fmt.Errorf("error remove collection photo entity: %w", err)
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrPhotoNotFound
+		}
+
+		return fmt.Errorf("error remove collection photo entity: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+			return storage.ErrPhotoNotFound
 	}
 
 	return nil
