@@ -94,13 +94,41 @@ func (s *CollectionRepository) GetCollectionsByOwner(ctx context.Context, ownerU
 	return collections, nil
 }
 
-func (s *CollectionRepository) GetAllCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error) {
+func (s *CollectionRepository) GetAllPermittedCollections(ctx context.Context, userUuid uuid.UUID) ([]entity.Collection, error) {
 	var collections []entity.Collection
 
-	err := s.db.Preload("Photos").Where("owner_uuid = ?", ownerUuid).Find(&collections).Error
+	permittedCollections := s.getDB(ctx).Table(entity.CollectionPermittedUser{}.TableName()).Select("collection_uuid").Where("user_uuid = ?", userUuid)
+
+	err := s.getDB(ctx).Preload("Photos").
+		Where("access_level = ?", "public").
+		Or("owner_uuid = ?", userUuid).
+		Or("collection_uuid IN (?)", permittedCollections).
+		Find(&collections).Error
 
 	if err != nil {
-		return nil, fmt.Errorf("error get photos by owner: %w", err)
+		return nil, fmt.Errorf("error get all permitted collections: %w", err)
+	}
+
+	return collections, nil
+}
+
+func (s *CollectionRepository) GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error) {
+	var collections []entity.Collection
+
+	permittedCollections := s.getDB(ctx).Table(entity.CollectionPermittedUser{}.TableName()).Select("collection_uuid").Where("user_uuid = ?", userUuid)
+
+	err := s.getDB(ctx).Preload("Photos").
+		Where("owner_uuid = ?", ownerUuid).
+		Where(
+			s.getDB(ctx).
+			Where("access_level = ?", "public").
+			Or("owner_uuid = ?", userUuid).
+			Or("collection_uuid IN (?)", permittedCollections),
+		).
+		Find(&collections).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get all permitted collections: %w", err)
 	}
 
 	return collections, nil

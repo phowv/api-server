@@ -13,11 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	ErrTagDoesNotExists = errors.New("tag doesn't exists")
-	ErrTagAlreadyExists = errors.New("tag already exists")
-)
-
 type TagSmallInfo struct {
 	TagUuid uuid.UUID `json:"tag_uuid"`
 	TagName string `json:"tag_name"`

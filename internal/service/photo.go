@@ -15,18 +15,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type StoredPhotoType string
-
-var (
-	PhotoSizeSmall StoredPhotoType = "small"
-	PhotoSizeMedium StoredPhotoType = "medium"
-	PhotoSizeRaw StoredPhotoType = "raw"
-
-	ErrInvalidPhotoSize = errors.New("invalid photo size")
-	ErrPhotoNotFound = errors.New("photo not found")
-	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
-)
-
 const (
 	mediumImageSize = 800
 	mediumImagePostfix = "_medium"

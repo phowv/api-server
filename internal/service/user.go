@@ -15,15 +15,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	ErrUserExists = errors.New("user already exists")
-	ErrUserPasswordTooShort = errors.New("password too short")
-	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
-	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
-	ErrUserIsNotActive = errors.New("user is not active")
-	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
-)
-
 const (
 	verificationCodeExpirationTime = 15 * time.Minute
 	minimalPasswordLength = 8

@@ -164,6 +164,7 @@ func main() {
 			r.Get("/photo/{photo_uuid}/file", view.ViewPhoto(log, photoService))
 			r.Get("/photo/{photo_uuid}", view.ViewPhotoInfo(log, photoService))
 
+			r.Get("/collections", view.ViewCollections(log, collectionService))
 			r.Get("/collection/{collection_uuid}", view.ViewCollection(log, collectionService))
 		})
 

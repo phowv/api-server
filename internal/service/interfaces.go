@@ -2,10 +2,41 @@ package service
 
 import (
 	"context"
+	"errors"
 	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/storage/entity"
 
 	"github.com/google/uuid"
+)
+
+type StoredPhotoType string
+
+
+const (
+	PhotoSizeSmall StoredPhotoType = "small"
+	PhotoSizeMedium StoredPhotoType = "medium"
+	PhotoSizeRaw StoredPhotoType = "raw"
+)
+
+var (
+	ErrInvalidPhotoSize = errors.New("invalid photo size")
+	ErrPhotoNotFound = errors.New("photo not found")
+	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
+
+	ErrTagDoesNotExists = errors.New("tag doesn't exists")
+	ErrTagAlreadyExists = errors.New("tag already exists")
+
+	ErrCollectionAlreadyExists = errors.New("collection already exists")
+	ErrCollectionNotFound = errors.New("collection not found")
+	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
+
+	ErrUserNotFound = errors.New("user already exists")
+	ErrUserExists = errors.New("user already exists")
+	ErrUserPasswordTooShort = errors.New("password too short")
+	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
+	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
+	ErrUserIsNotActive = errors.New("user is not active")
+	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
 )
 
 type Healthchecker interface {
@@ -41,9 +72,13 @@ type FileRepo interface {
 type CollectionRepo interface {
 	SaveCollection(ctx context.Context, collection *entity.Collection) (uuid.UUID, error)
 	GetCollection(ctx context.Context, collectionUuid uuid.UUID) (*entity.Collection, error)
+
 	GetAllCollections(ctx context.Context) ([]entity.Collection, error)
 	GetCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
-	GetAllCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
+
+	GetAllPermittedCollections(ctx context.Context, userUuid uuid.UUID) ([]entity.Collection, error)
+	GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error)
+
 	DeleteCollection(ctx context.Context, collectionUuid, ownerUuid uuid.UUID) error
 	AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error
 	RemovePhotoFromCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error

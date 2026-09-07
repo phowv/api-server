@@ -13,22 +13,20 @@ import (
 	"github.com/google/uuid"
 )
 
-var (
-	ErrCollectionAlreadyExists = errors.New("collection already exists")
-	ErrCollectionNotFound = errors.New("collection not found")
-	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
-)
-
 type CollectionMetadata struct {
 	Title string `json:"title" validate:"max=50"`
 	Description string `json:"description" validate:"max=200"`
 	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
-type CollectionInfo struct {
+type SimpleCollectionInfo struct {
 	CollectionMetadata
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
 	OwnerLogin string `json:"owner_login"`
+}
+
+type CollectionInfo struct {
+	SimpleCollectionInfo
 	Photos []PhotoSmallInfo `json:"photos"`
 }
 
@@ -159,7 +157,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 
 	user, err := s.userRepo.GetUserByUuid(ctx, collectionEntity.OwnerUuid)
 	if err != nil {
-		log.Error("failed to get photo owner", sl.Err(err), slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
+		log.Error("failed to get collection's owner", sl.Err(err), slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
 		return nil, fmt.Errorf("failed to get owner")
 	}
 
@@ -192,15 +190,102 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 	}
 
 	return &CollectionInfo{
-		CollectionUuid: collectionEntity.CollectionUuid,
-		OwnerLogin: user.Login,
 		Photos: photosInfo,
-		CollectionMetadata: CollectionMetadata{
-			Title: collectionEntity.Title,
-			Description: collectionEntity.Description,
-			AccessLevel: collectionEntity.AccessLevel,
+		SimpleCollectionInfo: SimpleCollectionInfo{
+			CollectionUuid: collectionEntity.CollectionUuid,
+			OwnerLogin: user.Login,
+			CollectionMetadata: CollectionMetadata{
+				Title: collectionEntity.Title,
+				Description: collectionEntity.Description,
+				AccessLevel: collectionEntity.AccessLevel,
+			},
 		},
 	}, nil
+}
+
+func (s *CollectionService) GetCollections(ctx context.Context, ownerLogin string) ([]SimpleCollectionInfo, error) {
+	log := s.log.With(
+		slog.String("op", "service.GetCollections"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	var collectionEntities []entity.Collection
+	var err error
+
+	requestUserUuidStr := ctx.Value("user_uuid")
+
+	if requestUserUuidStr != nil {
+		requestUserUuid, ok := requestUserUuidStr.(uuid.UUID)
+		if !ok {
+			log.Error("request user uuid has invalid type ")
+			return nil, errors.ErrUnsupported
+		}
+
+		if ownerLogin == "" {
+			collectionEntities, err = s.collectionRepo.GetAllPermittedCollections(ctx, requestUserUuid)
+
+			if err != nil {
+				log.Error("failed to get permitted collections", sl.Err(err), slog.Any("user_uuid", requestUserUuid))
+				return nil, fmt.Errorf("failed to get permitted collections")
+			}
+		} else {
+			user, err := s.userRepo.GetUserByLogin(ctx, ownerLogin)
+			if err != nil {
+				log.Error("failed to get collection's owner", sl.Err(err))
+				return nil, ErrUserNotFound
+			}
+
+			collectionEntities, err = s.collectionRepo.GetAllPermittedCollectionsByOwner(ctx, requestUserUuid, user.UserUuid)
+			if err != nil {
+				log.Error("failed to get permitted collections with specified owner", sl.Err(err), slog.Any("owner_uuid", user.UserUuid), slog.Any("user_uuid", requestUserUuid))
+				return nil, fmt.Errorf("failed to get permitted collections with specified owner")
+			}
+		}
+
+	} else {
+		if ownerLogin == "" {
+			collectionEntities, err = s.collectionRepo.GetAllCollections(ctx)
+
+			if err != nil {
+				log.Error("failed to get all public collections", sl.Err(err))
+				return nil, fmt.Errorf("failed to get all public collections")
+			}
+		} else {
+			user, err := s.userRepo.GetUserByLogin(ctx, ownerLogin)
+			if err != nil {
+				log.Error("failed to get collection's owner", sl.Err(err))
+				return nil, ErrUserNotFound
+			}
+			collectionEntities, err = s.collectionRepo.GetCollectionsByOwner(ctx, user.UserUuid)
+
+			if err != nil {
+				log.Error("failed to get public collections with specified owner", sl.Err(err), slog.Any("owner_uuid", user.UserUuid))
+				return nil, fmt.Errorf("failed to get public collections with specified owner")
+			}
+		}
+	}
+
+	collections := make([]SimpleCollectionInfo, len(collectionEntities))
+
+	for i, collectionEntity := range collectionEntities {
+		user, err := s.userRepo.GetUserByUuid(ctx, collectionEntity.OwnerUuid)
+		if err != nil {
+			log.Error("failed to get collection's owner", slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
+			return nil, err
+		}
+
+		collections[i] = SimpleCollectionInfo{
+			CollectionUuid: collectionEntity.CollectionUuid,
+			OwnerLogin: user.Login,
+			CollectionMetadata: CollectionMetadata{
+				Title: collectionEntity.Title,
+				Description: collectionEntity.Description,
+				AccessLevel: collectionEntity.AccessLevel,
+			},
+		}
+	}
+
+	return collections, nil
 }
 
 func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
