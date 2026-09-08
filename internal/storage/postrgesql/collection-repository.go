@@ -135,7 +135,13 @@ func (s *CollectionRepository) GetAllPermittedCollectionsByOwner(ctx context.Con
 }
 
 func (s *CollectionRepository) DeleteCollection(ctx context.Context, collectionUuid, ownerUuid uuid.UUID) error {
-	err := s.db.Where("owner_uuid = ?", ownerUuid).Delete(entity.Collection{}, collectionUuid).Error
+	err := s.getDB(ctx).Where("collection_uuid = ?", collectionUuid).Delete(entity.CollectionPhotoEntity{}).Error
+
+	if err != nil {
+		return fmt.Errorf("error delete collection photo entities: %w", err)
+	}
+
+	err = s.getDB(ctx).Where("owner_uuid = ?", ownerUuid).Delete(entity.Collection{}, collectionUuid).Error
 
 	if err != nil {
 		return fmt.Errorf("error delete collection: %w", err)

@@ -417,6 +417,64 @@ func (s *CollectionService) RemovePhotoFromCollection(ctx context.Context, colle
 	return nil
 }
 
+func (s *CollectionService) DeleteCollection(ctx context.Context, collectionUuid uuid.UUID) error {
+	log := s.log.With(
+		slog.String("op", "service.DeleteCollection"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		collectionEntity, err := s.collectionRepo.GetCollection(txCtx, collectionUuid)
+		if err != nil {
+			log.Error("failed get collection for add photo", sl.Err(err))
+
+			if errors.Is(err, storage.ErrCollectionNotFound) {
+				return ErrCollectionNotFound
+			}
+
+			return fmt.Errorf("failed get collection: %w", err)
+		}
+		requestUserUuid := ctx.Value("user_uuid")
+
+		if requestUserUuid != nil {
+			userUuid, ok := requestUserUuid.(uuid.UUID)
+			if !ok {
+				log.Error("request user uuid has invalid type")
+				return ErrCollectionActionIsNotPermitted
+			}
+
+			if collectionEntity.OwnerUuid != userUuid {
+				log.Error("delete collection is not permitted")
+
+				return ErrCollectionActionIsNotPermitted
+			}
+
+			err = s.collectionRepo.DeleteCollection(txCtx, collectionUuid, userUuid)
+			if err != nil {
+				log.Error("failed to delete collection", sl.Err(err))
+				return fmt.Errorf("failed to delete collection")
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("failed to transact delete collection", sl.Err(err))
+
+		if errors.Is(err, ErrCollectionNotFound) {
+			return ErrCollectionNotFound
+
+		} else if errors.Is(err, ErrCollectionActionIsNotPermitted) {
+			return ErrCollectionActionIsNotPermitted
+		}
+
+		return fmt.Errorf("failed to delete collection")
+	}
+
+	return nil
+}
+
 func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
 	log := s.log.With(
 		slog.String("op", "service.isPhotoPermitInCollection"),

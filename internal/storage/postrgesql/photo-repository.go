@@ -104,7 +104,7 @@ func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uui
 }
 
 func (s *PhotoRepository) DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error {
-	err := s.db.Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid).Error
+	err := s.getDB(ctx).Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid).Error
 
 	if err != nil {
 		return fmt.Errorf("error delete photo: %w", err)
