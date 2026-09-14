@@ -15,10 +15,12 @@ import (
 	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
+	omitemptyjwtmw "photo-viewer-server/internal/http-server/middleware/omitempty-jwt-mw"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
 	"photo-viewer-server/internal/lib/image"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
+	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
@@ -39,6 +41,7 @@ func main() {
 	cfg := config.MustLoad()
 
 	isDevEnv := cfg.AppEnv == appEnvDev
+	fileAccessExpires := time.Hour
 
 	log := setupLogger(cfg.AppEnv)
 
@@ -58,21 +61,52 @@ func main() {
 		os.Exit(1)
 	}
 
+	photoRepository := postrgesql.NewPhotoRepository(metadataStorage)
+	userRepository := postrgesql.NewUserRepository(metadataStorage)
+	authRepository := postrgesql.NewAuthReposotory(metadataStorage)
+	accessRepo := postrgesql.NewAccessReposotory(metadataStorage)
+	collectionRepo := postrgesql.NewCollectionRepository(metadataStorage)
+	txManager := postrgesql.NewTransactionManager(metadataStorage)
+
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
 	if err != nil {
 		log.Error("failed init minio storage")
 		os.Exit(1)
 	}
 
+	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, fileAccessExpires)
+
 	image.Initialize()
 
 	imageProcessor := image.NewProcessor()
 
-	photoService := service.NewPhotoService(log, metadataStorage, storage, cfg.PhotosBucketName, metadataStorage, &imageProcessor)
+	photoService := service.NewPhotoService(log, photoRepository, storage, cfg.PhotosBucketName, userRepository, &imageProcessor, txManager, accessRepo, keySigner)
+
+	tagService := service.NewTagService(log, photoRepository, txManager)
 
 	mailService := mail.NewMailService(cfg)
 
-	userService := service.NewUserService(log, &mailService, metadataStorage, metadataStorage, metadataStorage, staticVerificationCodeGenerator(cfg.VerificationCode), storage)
+	userService := service.NewUserService(
+		log,
+		&mailService,
+		userRepository,
+		authRepository,
+		authRepository,
+		staticVerificationCodeGenerator(cfg.VerificationCode),
+		storage,
+		cfg.InitialPhotosQuota,
+		txManager,
+	)
+
+	collectionService := service.NewCollectionService(
+		log,
+		collectionRepo,
+		userRepository,
+		txManager,
+		accessRepo,
+		keySigner,
+		photoRepository,
+	)
 
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
@@ -110,11 +144,8 @@ func main() {
 	router.Route("/api/v1", func(apiv1Router chi.Router) {
 		apiv1Router.Group(func(r chi.Router) {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
-			r.Get("/photos", view.ViewPhotos(log, photoService))
-			r.Get("/photo/{photo_uuid}", view.ViewPhoto(log, photoService, service.PhotoSizeRaw))
-			r.Get("/photo/{photo_uuid}/medium", view.ViewPhoto(log, photoService, service.PhotoSizeMedium))
-			r.Get("/photo/{photo_uuid}/small", view.ViewPhoto(log, photoService, service.PhotoSizeSmall))
-			r.Get("/photo/{photo_uuid}/info", view.ViewPhotoInfo(log, photoService))
+
+			r.Get("/tags", view.ViewTags(log, tagService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
@@ -128,12 +159,31 @@ func main() {
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
+			r.Use(omitemptyjwtmw.New(cfg.JwtAccessSecret))
+
+			r.Get("/photos", view.ViewPhotos(log, photoService))
+			r.Get("/photo/{photo_uuid}/file", view.ViewPhoto(log, photoService))
+			r.Get("/photo/{photo_uuid}", view.ViewPhotoInfo(log, photoService))
+
+			r.Get("/collections", view.ViewCollections(log, collectionService))
+			r.Get("/collection/{collection_uuid}", view.ViewCollection(log, collectionService))
+		})
+
+		apiv1Router.Group(func(r chi.Router) {
 			r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
 			r.Get("/auth/me", auth.GetMe(log, userService))
+
 			r.Post("/photos", upload.UploadPhoto(log, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
+
+			r.Post("/tags", upload.UploadTag(log, tagService))
+
+			r.Post("/collections", upload.UploadCollection(log, collectionService))
+			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
+			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
+			r.Delete("/collection/{collection_uuid}", remove.RemoveCollection(log, collectionService))
 		})
 	})
 

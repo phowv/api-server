@@ -1,6 +1,7 @@
 package view
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -30,9 +31,12 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 			return
 		}
 
+		accessKey := r.URL.Query().Get("photo_access_secret")
+		r.WithContext(context.WithValue(r.Context(), "photo_access_secret", accessKey))
+
 		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {
-			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
+			log.Error("failed to convert photo uuid str to uuid", slog.String("photo_id_str", photoIdStr))
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("invalid request"))
@@ -46,6 +50,11 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("photo not found"))
+				return
+
+			} else if errors.Is(err, service.ErrPhotoIsNotPermitted) {
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("photo is not permitted"))
 				return
 			}
 

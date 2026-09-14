@@ -2,11 +2,13 @@ package upload
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -36,7 +38,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		jsonMetadata := r.FormValue("metadata")
 
-		var metadata service.PhotoMetadata
+		var metadata service.SavePhotoInputMetadata
 		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
@@ -47,7 +49,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		log.Info("request metadata decoded", slog.Any("metadata", metadata))
 
-		if err := validator.New().Struct(metadata); err != nil {
+		if err := validatorx.NewValidator().Struct(metadata); err != nil {
 			validateErr := err.(validator.ValidationErrors)
 
 			log.Error("error validate request metadata", sl.Err(err))
@@ -98,6 +100,17 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 		photoUuid, err := photoService.SavePhoto(r.Context(), input, userUuid)
 		if err != nil {
 			log.Error("failed to save photo", sl.Err(err))
+
+			if errors.Is(err, service.ErrUserQuotaIsNotEnough) {
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("quota is not enough"))
+				return
+
+			} else if errors.Is(err, service.ErrTagDoesNotExists) {
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("tag does not exists"))
+				return
+			}
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
