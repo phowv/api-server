@@ -3,7 +3,7 @@ name: Notify deploy to prod server
 on:
   push:
     branches:
-      - prod
+      - master
   workflow_dispatch:
 
 jobs:
