@@ -7,13 +7,12 @@ import (
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
-	"photo-viewer-server/internal/storage"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 )
 
-func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+func ViewCollections(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.view.ViewPhotos"),
@@ -22,9 +21,9 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 
 		ownerLogin := r.URL.Query().Get("owner_login")
 
-		photos, err := photoService.GetPhotos(r.Context(), ownerLogin)
+		collections, err := collectionService.GetCollections(r.Context(), ownerLogin)
 		if err != nil {
-			if errors.Is(err, storage.ErrUserNotFound) {
+			if errors.Is(err, service.ErrUserNotFound) {
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("owner not found"))
 				return
@@ -37,8 +36,8 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 			return
 		}
 
-		log.Info("success get photos", slog.Int("length", len(photos)))
+		log.Info("success get photos", slog.Int("length", len(collections)))
 
-		render.JSON(w, r, photos)
+		render.JSON(w, r, collections)
 	}
 }
