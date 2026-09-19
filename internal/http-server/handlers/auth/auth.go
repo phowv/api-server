@@ -133,7 +133,7 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 
 		userUuid, ok := r.Context().Value("user_uuid").(uuid.UUID)
 		if !ok {
-			log.Error("failed to get user_uuid from query")
+			log.Error("failed to get user_uuid from context")
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("invalid user_uuid"))
@@ -202,7 +202,7 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 		
 		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
 
-		user, err := userService.AuthenticateSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
+		user, err := userService.RefreshSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
 		if err != nil {
 			log.Error("failed to authenticate session", sl.Err(err))
 
@@ -263,6 +263,43 @@ func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerF
 	}
 }
 
+func LogoutUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		log := lg.With(
+			slog.String("op", "handlers.auth.LogoutUser"),
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+		)
+
+		sessionUuid, ok := r.Context().Value("session_uuid").(uuid.UUID)
+		if !ok {
+			log.Error("failed to get session_uuid from context")
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("invalid session_uuid"))
+			return
+		}
+
+		err := userService.RevokeSession(r.Context(), sessionUuid)
+
+		if err != nil {
+			log.Error("failed to get revoke session", sl.Err(err))
+
+			if errors.Is(err, service.ErrSessionNotFound) {
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, response.Error("session not found"))
+				return
+			}
+
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, response.Error("internal error"))
+			return
+		}
+
+		render.Status(r, http.StatusOK)
+		render.JSON(w, r, response.OK())
+	}
+}
+
 type createJwtTokensResult struct {
 	tokenString string
 	refreshCookie *http.Cookie
@@ -272,9 +309,12 @@ func createJwtTokens(
 	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, isDevEnv bool,
 ) (*createJwtTokensResult, error) {
 	expirationTime := time.Now().Add(accessTokenExpirationTime)
+	sessionUuid := uuid.New()
+
 	claims := &auth.Claims{
 		UserUuid: user.UserUuid,
 		Role: user.Role,
+		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -285,8 +325,6 @@ func createJwtTokens(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create string access token: %w", err)
 	}
-
-	sessionUuid := uuid.New()
 
 	refreshExpirarionTime := time.Now().Add(refreshTokenExpirationTime)
 	refreshClaims := &auth.RefreshClaims{

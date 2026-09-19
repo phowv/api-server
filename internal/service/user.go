@@ -302,7 +302,7 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 	return nil
 }
 
-func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
+func (s *UserService) RefreshSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
 		session, err := s.sessionRepo.GetValidSessionByUuid(txCtx, sessionUuid)
 		if err != nil {
@@ -327,4 +327,20 @@ func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.
 	}
 
 	return s.GetUserInfo(ctx, userUuid)
+}
+
+func (s *UserService) RevokeSession(ctx context.Context, sessionUuid uuid.UUID) error {
+	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		err := s.sessionRepo.RevokeSessionByUuid(txCtx, sessionUuid)
+
+		if err != nil {
+			if errors.Is(err, storage.ErrSessionNotFound) {
+				return ErrSessionNotFound
+			}
+
+			return fmt.Errorf("failed to revoke session: %w", err)
+		}
+
+		return nil
+	})
 }

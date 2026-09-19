@@ -1,7 +1,6 @@
 package jwtmiddleware
 
 import (
-	"context"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
@@ -37,8 +36,7 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 				return
 			}
 			
-			ctx := context.WithValue(r.Context(), "user_uuid", claims.UserUuid)
-			ctx = context.WithValue(ctx, "user_role", claims.Role)
+			ctx := auth.ApplyAccessTokenClaims(r.Context(), claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

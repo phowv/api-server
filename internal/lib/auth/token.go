@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -31,4 +32,12 @@ func ParseAccessToken(tokenString string, secret []byte) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+func ApplyAccessTokenClaims(ctx context.Context, claims *Claims) context.Context {
+	ctx = context.WithValue(ctx, "user_uuid", claims.UserUuid)
+	ctx = context.WithValue(ctx, "user_role", claims.Role)
+	ctx = context.WithValue(ctx, "session_uuid", claims.SessionUuid)
+
+	return ctx
 }

@@ -6,13 +6,14 @@ import (
 )
 
 type Claims struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	Role string `json:"user_role"`
+	UserUuid uuid.UUID `json:"uid"`
+	Role string `json:"ur"`
+	SessionUuid uuid.UUID `json:"sid"`
 	jwt.RegisteredClaims
 }
 
 type RefreshClaims struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	SessionUuid uuid.UUID `json:"session_uuid"`
+	UserUuid uuid.UUID `json:"uid"`
+	SessionUuid uuid.UUID `json:"sid"`
 	jwt.RegisteredClaims
 }

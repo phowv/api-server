@@ -40,6 +40,8 @@ var (
 	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
 	ErrUserIsNotActive = errors.New("user is not active")
 	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
+
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 type Healthchecker interface {

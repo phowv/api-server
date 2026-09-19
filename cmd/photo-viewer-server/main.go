@@ -168,6 +168,7 @@ func main() {
 			r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
 			r.Get("/auth/me", auth.GetMe(log, userService))
+			r.Post("/auth/logout", auth.LogoutUser(log, userService))
 
 			r.Post("/photos", upload.UploadPhoto(log, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))

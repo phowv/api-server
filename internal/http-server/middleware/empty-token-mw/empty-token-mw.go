@@ -2,7 +2,6 @@ package emptytokenmw
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
