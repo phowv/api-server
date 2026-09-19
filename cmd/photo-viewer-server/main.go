@@ -21,6 +21,7 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
+	libauth "photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
@@ -38,6 +39,11 @@ func main() {
 	cfg := config.MustLoad()
 
 	isDevEnv := cfg.AppEnv == config.AppEnvDev
+	authConfig := &libauth.AuthConfig{
+		IsDevEnv: isDevEnv,
+		JwtAccessExpires: cfg.JwtAccessExpires,
+		JwtRefreshExpires: cfg.JwtRefreshExpires,
+	}
 
 	log := setupLogger(cfg.AppEnv)
 
@@ -151,8 +157,8 @@ func main() {
 			r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
 			r.Post("/auth/register", auth.RegisterUser(log, validator, userService))
-			r.Post("/auth/login", auth.LoginUser(log, validator, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
-			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
+			r.Post("/auth/login", auth.LoginUser(log, validator, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, authConfig))
+			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, authConfig))
 			r.Post("/auth/verify", auth.VerifyUser(log, validator, userService))
 		})
 

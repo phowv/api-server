@@ -21,9 +21,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenExpirationTime = 15 * time.Minute
-const refreshTokenExpirationTime = 3 * time.Hour
-
 type userInfoResponse struct {
 	Login string `json:"user_login"`
 	Email string `json:"user_email"`
@@ -95,7 +92,7 @@ func RegisterUser(lg *slog.Logger, validator *vlpkg.Validate, userService *servi
 	}
 }
 
-func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
+func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, authConfig *auth.AuthConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.LoginUser"),
@@ -146,7 +143,7 @@ func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwt
 			return
 		}
 
-	  tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
+	  tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
 			
@@ -195,7 +192,7 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	}
 }
 
-func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
+func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, authConfig *auth.AuthConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.RefreshUser"),
@@ -247,7 +244,7 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 		}
 		log.Debug("success authenticate user session")
 
-		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
+		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
 			
@@ -358,9 +355,9 @@ type createJwtTokensResult struct {
 }
 
 func createJwtTokens(
-	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, isDevEnv bool,
+	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, authConfig *auth.AuthConfig,
 ) (*createJwtTokensResult, error) {
-	expirationTime := time.Now().Add(accessTokenExpirationTime)
+	expirationTime := time.Now().Add(authConfig.JwtAccessExpires)
 	sessionUuid := uuid.New()
 
 	claims := &auth.Claims{
@@ -378,7 +375,7 @@ func createJwtTokens(
 		return nil, fmt.Errorf("failed to create string access token: %w", err)
 	}
 
-	refreshExpirarionTime := time.Now().Add(refreshTokenExpirationTime)
+	refreshExpirarionTime := time.Now().Add(authConfig.JwtRefreshExpires)
 	refreshClaims := &auth.RefreshClaims{
 		UserUuid: user.UserUuid,
 		SessionUuid: sessionUuid,
@@ -399,7 +396,7 @@ func createJwtTokens(
 	}
 
 	sameSite := http.SameSiteStrictMode
-	if isDevEnv {
+	if authConfig.IsDevEnv {
 		sameSite = http.SameSiteNoneMode
 	}
 

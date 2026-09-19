@@ -33,6 +33,8 @@ type Config struct {
 
 	JwtAccessSecret	string `env:"JWT_ACCESS_SECRET" env-required:"true"`
 	JwtRefreshSecret string `env:"JWT_REFRESH_SECRET" env-required:"true"`
+	JwtAccessExpires time.Duration `env:"JWT_ACCESS_EXPIRES" env-required:"true"`
+	JwtRefreshExpires time.Duration `env:"JWT_REFRESH_EXPIRES" env-required:"true"`
 
 	SmtpHost				string `env:"SMTP_HOST" env-required:"false"`
 	SmtpUser				string `env:"SMTP_USER" env-required:"false"`
