@@ -2,13 +2,13 @@ package omitemptyjwtmw
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/golang-jwt/jwt/v5"
 )
 func New(jwtSecret string) func(next http.Handler) http.Handler {
 	jwtSecretBytes := []byte(jwtSecret)
@@ -28,23 +28,18 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 			}
 
 			tokenString := parts[1]
-			claims := &auth.Claims{}
-
-			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-				return jwtSecretBytes, nil
-			})
+			claims, err := auth.ParseAccessToken(tokenString, jwtSecretBytes)
 
 			if err != nil {
+				if errors.Is(err, auth.ErrInvalidToken) {
+					render.Status(r, http.StatusUnauthorized)
+					render.JSON(w, r, response.Error("invalid token"))
+				}
+
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			if !token.Valid {
-				render.Status(r, http.StatusUnauthorized)
-				render.JSON(w, r, response.Error("invalid token"))
-				return
-			}
-			
 			ctx := context.WithValue(r.Context(), "user_uuid", claims.UserUuid)
 			ctx = context.WithValue(ctx, "user_role", claims.Role)
 			next.ServeHTTP(w, r.WithContext(ctx))

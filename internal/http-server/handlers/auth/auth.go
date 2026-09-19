@@ -28,6 +28,11 @@ type userInfoResponse struct {
 	Email string `json:"user_email"`
 }
 
+type accessTokenResponse struct {
+	response.Response
+	AccessToken string `json:"access_token"`
+}
+
 func RegisterUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -101,7 +106,8 @@ func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRef
 			}
 			time.Sleep(time.Duration(duration) * time.Millisecond)
 
-			http.Error(w, "invalid credentials", http.StatusForbidden)	
+			render.Status(r, http.StatusForbidden)
+			render.JSON(w, r, response.Error("invalid credentials"))
 			return
 		}
 
@@ -114,7 +120,7 @@ func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRef
 			return
 		}
 
-		sendJwtTokens(w, tokens)
+		sendJwtTokens(w, r, tokens)
 	}
 }
 
@@ -125,7 +131,14 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
+		userUuid, ok := r.Context().Value("user_uuid").(uuid.UUID)
+		if !ok {
+			log.Error("failed to get user_uuid from query")
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("invalid user_uuid"))
+			return
+		}
 
 		log.Info("get user info", slog.Any("user_uuid", userUuid))
 
@@ -169,8 +182,12 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 		refreshClaims := &auth.RefreshClaims{}
 
 		refreshToken, err := jwt.ParseWithClaims(refreshTokenString, refreshClaims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected singing method: %v", token.Header["alg"])
+			}
+
 			return []byte(jwtRefreshSecret), nil
-		})
+		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Name}))
 
 		if err != nil || !refreshToken.Valid {
 			log.Debug("invalid refresh token")
@@ -204,7 +221,7 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 			return
 		}
 
-		sendJwtTokens(w, tokens)
+		sendJwtTokens(w, r, tokens)
 	}
 }
 
@@ -236,7 +253,8 @@ func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerF
 			}
 			time.Sleep(time.Duration(duration) * time.Millisecond)
 
-			http.Error(w, "invalid code", http.StatusForbidden)	
+			render.Status(r, http.StatusForbidden)
+			render.JSON(w, r, response.Error("invalid code"))
 			return
 		}
 
@@ -311,11 +329,11 @@ func createJwtTokens(
 	}, nil
 }
 
-func sendJwtTokens(w http.ResponseWriter, tokens *createJwtTokensResult) {
+func sendJwtTokens(w http.ResponseWriter, r *http.Request, tokens *createJwtTokensResult) {
 	http.SetCookie(w, tokens.refreshCookie)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"access_token": tokens.tokenString,
-	})
+	render.JSON(w, r, accessTokenResponse{
+		Response: response.OK(),
+		AccessToken: tokens.tokenString,
+	})	
 }

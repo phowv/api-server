@@ -11,6 +11,11 @@ import (
 	"github.com/go-chi/render"
 )
 
+type healthcheckResponse struct {
+	response.Response
+	Healthy bool `json:"healthy"`
+}
+
 func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -18,21 +23,19 @@ func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		resp := response.Response{
-			Status: "Healthy",
-		}
-
 		err := healthCheckService.Check(r.Context())
 		if err != nil {
 			log.Error("healthcheck isn't pass", sl.Err(err))
 
-			resp.Status = "Unhealthy"
 			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, resp)
+			render.JSON(w, r, response.Error("Unhealthy"))
 			return
 		}
 
 		render.Status(r, http.StatusOK)
-		render.JSON(w, r, resp)
+		render.JSON(w, r, healthcheckResponse{
+			Response: response.OK(),
+			Healthy: true,
+		})
 	}
 }

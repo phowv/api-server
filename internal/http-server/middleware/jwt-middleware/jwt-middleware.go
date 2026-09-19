@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/golang-jwt/jwt/v5"
 )
 func New(jwtSecret string) func(next http.Handler) http.Handler {
+	jwtSecretBytes := []byte(jwtSecret)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
@@ -29,13 +29,9 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 			}
 
 			tokenString := parts[1]
-			claims := &auth.Claims{}
+			claims, err := auth.ParseAccessToken(tokenString, jwtSecretBytes)
 
-			token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-				return []byte(jwtSecret), nil
-			})
-
-			if err != nil || !token.Valid {
+			if err != nil {
 				render.Status(r, http.StatusUnauthorized)
 				render.JSON(w, r, response.Error("invalid token"))
 				return
