@@ -22,6 +22,7 @@ import (
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
 	"photo-viewer-server/internal/lib/signer"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
@@ -68,6 +69,8 @@ func main() {
 		log.Error("failed init minio storage", sl.Err(err))
 		os.Exit(1)
 	}
+
+	validator := validatorx.NewValidator()
 
 	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, cfg.FileAccessExpires)
 
@@ -147,10 +150,10 @@ func main() {
 			r.Use(emptytokenmw.New(cfg.JwtAccessSecret))
 			r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
-			r.Post("/auth/register", auth.RegisterUser(log, userService))
-			r.Post("/auth/login", auth.LoginUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
+			r.Post("/auth/register", auth.RegisterUser(log, validator, userService))
+			r.Post("/auth/login", auth.LoginUser(log, validator, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
 			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
-			r.Post("/auth/verify", auth.VerifyUser(log, userService))
+			r.Post("/auth/verify", auth.VerifyUser(log, validator, userService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
@@ -170,13 +173,13 @@ func main() {
 			r.Get("/auth/me", auth.GetMe(log, userService))
 			r.Post("/auth/logout", auth.LogoutUser(log, userService))
 
-			r.Post("/photos", upload.UploadPhoto(log, photoService))
+			r.Post("/photos", upload.UploadPhoto(log, validator, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
 
-			r.Post("/tags", upload.UploadTag(log, tagService))
+			r.Post("/tags", upload.UploadTag(log, validator, tagService))
 
-			r.Post("/collections", upload.UploadCollection(log, collectionService))
+			r.Post("/collections", upload.UploadCollection(log, validator, collectionService))
 			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}", remove.RemoveCollection(log, collectionService))

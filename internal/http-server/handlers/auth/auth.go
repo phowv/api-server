@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
+	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -33,7 +34,7 @@ type accessTokenResponse struct {
 	AccessToken string `json:"access_token"`
 }
 
-func RegisterUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
+func RegisterUser(lg *slog.Logger, validator *vlpkg.Validate, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.RegisterUser"),
@@ -50,6 +51,23 @@ func RegisterUser(lg *slog.Logger, userService *service.UserService) http.Handle
 		}
 
 		log.Debug("request metadata decoded", slog.String("login", userData.Login), slog.String("email", userData.Email))
+
+		if err := validator.Struct(userData); err != nil {
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
+
+			log.Error("error validate request metadata", sl.Err(err))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.ValidationErrors(validateErr))
+			return
+		}
 
 		_, err := userService.CreateUser(r.Context(), userData)
 
@@ -77,7 +95,7 @@ func RegisterUser(lg *slog.Logger, userService *service.UserService) http.Handle
 	}
 }
 
-func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
+func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.LoginUser"),
@@ -94,6 +112,23 @@ func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRef
 		}
 
 		log.Debug("request metadata decoded", slog.String("login", userCredentials.Login))
+
+		if err := validator.Struct(userCredentials); err != nil {
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
+
+			log.Error("error validate request metadata", sl.Err(err))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.ValidationErrors(validateErr))
+			return
+		}
 
 		user, err := userService.AuthenticateUser(r.Context(), userCredentials)
 
@@ -225,7 +260,7 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 	}
 }
 
-func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
+func VerifyUser(lg *slog.Logger, validator *vlpkg.Validate, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.auth.VerifyUser"),
@@ -242,6 +277,23 @@ func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerF
 		}
 
 		log.Debug("request metadata decoded", slog.String("login", userVerifyCredentials.Login))
+
+		if err := validator.Struct(userVerifyCredentials); err != nil {
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
+
+			log.Error("error validate request metadata", sl.Err(err))
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.ValidationErrors(validateErr))
+			return
+		}
 
 		err := userService.VerifyUser(r.Context(), userVerifyCredentials)
 		if err != nil {

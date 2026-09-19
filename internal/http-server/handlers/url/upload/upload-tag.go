@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/go-playground/validator/v10"
+	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -21,7 +21,7 @@ type TagCreateResponse struct {
   TagUuid uuid.UUID `json:"tag_uuid"`
 }
 
-func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc {
+func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.upload.UploadTag"),
@@ -40,7 +40,14 @@ func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 		}
 
 		if err := validatorx.NewValidator().Struct(tagInfo); err != nil {
-			validateErr := err.(validator.ValidationErrors)
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
 
 			log.Error("error validate request metadata", sl.Err(err))
 

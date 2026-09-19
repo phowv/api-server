@@ -8,12 +8,11 @@ import (
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
-	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/go-playground/validator/v10"
+	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -27,7 +26,7 @@ type Response struct {
   PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
-func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.upload.UploadPhoto"),
@@ -49,8 +48,15 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		log.Info("request metadata decoded", slog.Any("metadata", metadata))
 
-		if err := validatorx.NewValidator().Struct(metadata); err != nil {
-			validateErr := err.(validator.ValidationErrors)
+		if err := validator.Struct(metadata); err != nil {
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
 
 			log.Error("error validate request metadata", sl.Err(err))
 

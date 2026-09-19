@@ -21,19 +21,19 @@ const (
 )
 
 type UserData struct {
-	Login string `json:"login"`
-	Email string `json:"email"`
-	Password string `json:"password"`
+	Login string `json:"login" validate:"required,min=2,max=50"`
+	Email string `json:"email" validate:"required,min=2,max=50"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
 	Description string `json:"description"`
 }
 
 type UserAuthCredentials struct {
-	Login string `json:"login"`
+	Login string `json:"login" validate:"required,min=2,max=50"`
 	Password string `json:"password"`
 }
 
 type UserVerifyCredentials struct {
-	Login string `json:"login"`
+	Login string `json:"login" validate:"required,min=2,max=50"`
 	Code string `json:"code"`
 }
 
