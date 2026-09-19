@@ -173,7 +173,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 			return nil
 		}
 
-		rawFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
+		rawFilename, err := s.fileRepo.SaveFile(txCtx, ownerUuid.String(), newRawFilename, originalFileData, input.ContentType)
 		if err != nil {
 			log.Error("failed to save raw photo file", sl.Err(err))
 
@@ -185,7 +185,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		}
 		savedImages = append(savedImages, newRawFilename)
 
-		mediumFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newMediumFilename, mediumFileData, input.ContentType)
+		mediumFilename, err := s.fileRepo.SaveFile(txCtx, ownerUuid.String(), newMediumFilename, mediumFileData, input.ContentType)
 		if err != nil {
 			log.Error("failed to save medium photo file", sl.Err(err))
 
@@ -197,7 +197,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		}
 		savedImages = append(savedImages, newMediumFilename)
 
-		smallFilename, err := s.fileRepo.SaveFile(ctx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
+		smallFilename, err := s.fileRepo.SaveFile(txCtx, ownerUuid.String(), newSmallFilename, smallFileData, input.ContentType)
 		if err != nil {
 			log.Error("failed to save small photo file", sl.Err(err))
 
@@ -232,7 +232,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 			AccessLevel: input.Metadata.AccessLevel,
 		}
 
-		photoUuid, err = s.photoRepo.SavePhoto(ctx, &photoEntity)
+		photoUuid, err = s.photoRepo.SavePhoto(txCtx, &photoEntity)
 
 		if err != nil {
 			log.Error("error save photo metadata", sl.Err(err))
@@ -456,7 +456,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 	)
 
 	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		photoEntity, err := s.photoRepo.GetPhoto(ctx, photoUuid)
+		photoEntity, err := s.photoRepo.GetPhoto(txCtx, photoUuid)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
@@ -471,15 +471,15 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 			return ErrUserInvalidAuthorization
 		}
 
-		rawPhotoData, rawContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
+		rawPhotoData, rawContentType, err := s.fileRepo.GetFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
 		if err != nil {
 			return fmt.Errorf("failed to get raw photo file")
 		}
-		mediumPhotoData, mediumContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
+		mediumPhotoData, mediumContentType, err := s.fileRepo.GetFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
 		if err != nil {
 			return fmt.Errorf("failed to get medium photo file")
 		}
-		smallPhotoData, smallContentType, err := s.fileRepo.GetFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
+		smallPhotoData, smallContentType, err := s.fileRepo.GetFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
 		if err != nil {
 			return fmt.Errorf("failed to get small photo file")
 		}
@@ -495,7 +495,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 			return nil
 		}
 
-		err = s.photoRepo.DeletePhoto(ctx, photoUuid, ownerUuid)
+		err = s.photoRepo.DeletePhoto(txCtx, photoUuid, ownerUuid)
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
@@ -506,7 +506,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		}
 
 		deleted = append(deleted, imageWithType{name: photoEntity.RawFilename, content: rawPhotoData, contentType: rawContentType})
-		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
+		err = s.fileRepo.DeleteFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.RawFilename)
 		if err != nil {
 			restoreErr := restore()
 			if restoreErr != nil {
@@ -516,7 +516,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		}
 
 		deleted = append(deleted, imageWithType{name: photoEntity.MediumFilename, content: mediumPhotoData, contentType: mediumContentType})
-		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
+		err = s.fileRepo.DeleteFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.MediumFilename)
 		if err != nil {
 			restoreErr := restore()
 			if restoreErr != nil {
@@ -526,7 +526,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		}
 
 		deleted = append(deleted, imageWithType{name: photoEntity.SmallFilename, content: smallPhotoData, contentType: smallContentType})
-		err = s.fileRepo.DeleteFile(ctx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
+		err = s.fileRepo.DeleteFile(txCtx, photoEntity.OwnerUuid.String(), photoEntity.SmallFilename)
 		if err != nil {
 			restoreErr := restore()
 			if restoreErr != nil {
@@ -545,7 +545,7 @@ func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID,
 	)
 
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-	  return s.photoRepo.UpdatePhoto(ctx, photoUuid, userUuid, metadataToMap(&metadata))
+	  return s.photoRepo.UpdatePhoto(txCtx, photoUuid, userUuid, metadataToMap(&metadata))
 	})
 
 	if err != nil {

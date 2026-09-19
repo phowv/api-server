@@ -127,25 +127,25 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 			PhotosQuota: s.initinalPhotosQuota,
 		}
 
-		existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
+		existingUser, err := s.userRepo.GetUserByEmail(txCtx, data.Email)
 
 		if existingUser != nil {
 			return ErrUserExists
 		}
 
-		existingUser, err = s.userRepo.GetUserByLogin(ctx, data.Login)
+		existingUser, err = s.userRepo.GetUserByLogin(txCtx, data.Login)
 
 		if existingUser != nil {
 			return ErrUserExists
 		}
 
-		id, err = s.userRepo.CreateUser(ctx, &user)
+		id, err = s.userRepo.CreateUser(txCtx, &user)
 
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 
-		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error delete all codes by user uuid: %w", err)
@@ -173,7 +173,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 			ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
 		}
 
-		 err = s.verificationCodeRepo.SaveVerificationCode(ctx, &verificationCode)
+		 err = s.verificationCodeRepo.SaveVerificationCode(txCtx, &verificationCode)
 
 		if err != nil {
 			return fmt.Errorf("failed to save verification code: %w", err)
@@ -190,13 +190,13 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 
 func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials UserVerifyCredentials) error {
 	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		user, err := s.userRepo.GetUserByLogin(ctx, userVerifyCredentials.Login)
+		user, err := s.userRepo.GetUserByLogin(txCtx, userVerifyCredentials.Login)
 
 		if err != nil {
 			return fmt.Errorf("error get user: %w", err)
 		}
 
-		code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(ctx, user.UserUuid)
+		code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error get verification code: %w", err)
@@ -206,7 +206,7 @@ func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials User
 			return ErrUserInvalidAuthentication
 		}
 
-		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error delete all codes by user uuid: %w", err)
@@ -214,13 +214,13 @@ func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials User
 
 		fields := make(map[string]any)
 		fields["is_active"] = true
-		err = s.userRepo.UpdateUser(ctx, user.UserUuid, fields)
+		err = s.userRepo.UpdateUser(txCtx, user.UserUuid, fields)
 
 		if err != nil {
 			return fmt.Errorf("failed to set active user: %w", err)
 		}
 
-		err = s.fileRepo.CreateBucket(ctx, user.UserUuid.String())
+		err = s.fileRepo.CreateBucket(txCtx, user.UserUuid.String())
 		if err != nil {
 			return fmt.Errorf("failed to create bucket: %w", err)
 		}
@@ -291,7 +291,7 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 	}
 
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		_, err := s.sessionRepo.SaveSession(ctx, &session)
+		_, err := s.sessionRepo.SaveSession(txCtx, &session)
 		return err
 	})
 
@@ -304,7 +304,7 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 
 func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		session, err := s.sessionRepo.GetValidSessionByUuid(ctx, sessionUuid)
+		session, err := s.sessionRepo.GetValidSessionByUuid(txCtx, sessionUuid)
 		if err != nil {
 			return fmt.Errorf("failed to get session: %w", err)
 		}
@@ -313,7 +313,7 @@ func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.
 			return errors.New("expired token")
 		}
 
-		err = s.sessionRepo.RevokeSessionByUuid(ctx, sessionUuid)
+		err = s.sessionRepo.RevokeSessionByUuid(txCtx, sessionUuid)
 
 		if err != nil {
 			return fmt.Errorf("failed to revoke session: %w", err)
