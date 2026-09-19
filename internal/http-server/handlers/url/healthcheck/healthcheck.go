@@ -14,7 +14,7 @@ import (
 func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
-			slog.String("op", "handlers.auth.RegisterUser"),
+			slog.String("op", "handlers.Healthcheck"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 

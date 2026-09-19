@@ -72,7 +72,7 @@ func (s *UserRepository) GetUserByLogin(ctx context.Context, login string) (*ent
 			return nil, storage.ErrUserNotFound
 		}
 
-		return nil, fmt.Errorf("error get user by email: %w", err)
+		return nil, fmt.Errorf("error get user by login: %w", err)
 	}
 
 	return &user, nil

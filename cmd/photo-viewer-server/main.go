@@ -18,6 +18,7 @@ import (
 	omitemptyjwtmw "photo-viewer-server/internal/http-server/middleware/omitempty-jwt-mw"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
 	"photo-viewer-server/internal/lib/image"
+	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
 	"photo-viewer-server/internal/lib/signer"
@@ -57,7 +58,7 @@ func main() {
 	)
 
 	if err != nil {
-		log.Error("failed init postrgesql")
+		log.Error("failed init postrgesql", sl.Err(err))
 		os.Exit(1)
 	}
 
@@ -70,7 +71,7 @@ func main() {
 
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
 	if err != nil {
-		log.Error("failed init minio storage")
+		log.Error("failed init minio storage", sl.Err(err))
 		os.Exit(1)
 	}
 

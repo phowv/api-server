@@ -149,7 +149,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 	isPermit, err := s.isCollectionPermit(ctx, collectionEntity)
 
 	if err != nil {
-		log.Error("failed to check photo permissions", sl.Err(err))
+		log.Error("failed to check collection permissions", sl.Err(err))
 		return nil, ErrCollectionIsNotPermitted
 	}
 
@@ -170,11 +170,11 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 		isPhotoPermit, err := s.isPhotoPermitInCollection(ctx, collectionEntity, &photoEntity)
 
 		if err != nil {
-			log.Error("faild to check photo permissions in collection", sl.Err(err))
+			log.Error("failed to check collection permissions in collection", sl.Err(err))
 			continue
 		}
 		if !isPhotoPermit {
-			log.Debug("photo is not permitted in coillection")
+			log.Debug("photo is not permitted in collection")
 			continue
 		}
 	
@@ -638,7 +638,7 @@ func (s *CollectionService) isCollectionPermitToAdd(ctx context.Context, collect
 
 func (s *CollectionService) isCollectionPermitToRemove(ctx context.Context, collection *entity.Collection) (bool, error) {
 	log := s.log.With(
-		slog.String("op", "service.isCollectionPermitToAdd"),
+		slog.String("op", "service.isCollectionPermitToRemove"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
