@@ -25,9 +25,14 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 					return []byte(jwtSecret), nil
 				})
 
-				if err == nil && token.Valid {
-					render.Status(r, http.StatusForbidden)
-					render.JSON(w, r, response.Error("already authenticated"))
+				if err == nil {
+					if token.Valid {
+						render.Status(r, http.StatusForbidden)
+						render.JSON(w, r, response.Error("already authenticated"))
+					}	else {
+						render.Status(r, http.StatusUnauthorized)
+						render.JSON(w, r, response.Error("invalid token"))
+					}
 					return
 				}
 			}

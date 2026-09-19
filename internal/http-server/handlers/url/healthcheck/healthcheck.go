@@ -27,6 +27,9 @@ func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService
 			log.Error("healthcheck isn't pass", sl.Err(err))
 
 			resp.Status = "Unhealthy"
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, resp)
+			return
 		}
 
 		render.Status(r, http.StatusOK)

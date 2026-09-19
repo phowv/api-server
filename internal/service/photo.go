@@ -442,6 +442,7 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 			Description: photoEntity.Description,
 			CreatedAt: photoEntity.CreatedDate,
 			TookAt: photoEntity.TookAt,
+			AccessLevel: photoEntity.AccessLevel,
 		},
 	}
 
@@ -496,6 +497,11 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 
 		err = s.photoRepo.DeletePhoto(ctx, photoUuid, ownerUuid)
 		if err != nil {
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
+				return err
+			}
+
 			return fmt.Errorf("failed to delete photo: %w", err)
 		}
 

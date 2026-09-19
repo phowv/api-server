@@ -7,6 +7,11 @@ import (
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
+const (
+	AppEnvDev  = "dev"
+	AppEnvProd = "prod"
+)
+
 type Config struct {
 	Host    string        `env:"SERVER_HOST" env-default:"0.0.0.0"`
 	Port    int           `env:"SERVER_PORT" env-default:"8080"`
@@ -29,15 +34,16 @@ type Config struct {
 	JwtAccessSecret	string `env:"JWT_ACCESS_SECRET" env-required:"true"`
 	JwtRefreshSecret string `env:"JWT_REFRESH_SECRET" env-required:"true"`
 
-	SmtpHost				string `env:"SMTP_HOST" env-required:"true"`
-	SmtpUser				string `env:"SMTP_USER" env-required:"true"`
-	SmtpPassword		string `env:"SMTP_PASSWORD" env-required:"true"`
-	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"true"`
+	SmtpHost				string `env:"SMTP_HOST" env-required:"false"`
+	SmtpUser				string `env:"SMTP_USER" env-required:"false"`
+	SmtpPassword		string `env:"SMTP_PASSWORD" env-required:"false"`
+	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"false"`
 
 	VerificationCode string `env:"VERIFICATION_CODE" env-required:"true"`
 	InitialPhotosQuota int `env:"INITIAL_PHOTOS_QUOTA" env-default:"0"`
 
 	KeySignerSecret string `env:"KEY_SIGNER_SECRET" env-required:"true"`
+	FileAccessExpires time.Duration `env:"FILE_ACCESS_EXPIRES" env-required:"true"`
 }
 
 func MustLoad() *Config {
@@ -45,6 +51,10 @@ func MustLoad() *Config {
 
 	if err := cleanenv.ReadEnv(&config); err != nil {
 		log.Fatalf("error reading config file: %s", err)
+	}
+
+	if config.AppEnv != AppEnvDev && config.AppEnv != AppEnvProd {
+		log.Fatal("invalid APP_ENV value. must be dev or prod")
 	}
 
 	return &config

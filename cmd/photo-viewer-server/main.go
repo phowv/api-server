@@ -33,16 +33,10 @@ import (
 	"github.com/go-chi/cors"
 )
 
-const (
-	appEnvDev  = "dev"
-	appEnvProd = "prod"
-)
-
 func main() {
 	cfg := config.MustLoad()
 
-	isDevEnv := cfg.AppEnv == appEnvDev
-	fileAccessExpires := time.Hour
+	isDevEnv := cfg.AppEnv == config.AppEnvDev
 
 	log := setupLogger(cfg.AppEnv)
 
@@ -75,7 +69,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, fileAccessExpires)
+	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, cfg.FileAccessExpires)
 
 	image.Initialize()
 
@@ -208,11 +202,11 @@ func main() {
 func setupLogger(env string) *slog.Logger {
 	var log *slog.Logger
 	switch env {
-	case appEnvDev:
+	case config.AppEnvDev:
 		log = slog.New(
 			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
 		)
-	case appEnvProd:
+	case config.AppEnvProd:
 		log = slog.New(
 			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}),
 		)

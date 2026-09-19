@@ -319,10 +319,6 @@ func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.
 			return fmt.Errorf("failed to revoke session: %w", err)
 		}
 
-		if session.ExpiresAt.Before(time.Now()) {
-			return errors.New("expired token")
-		}
-
 		return nil
 	})
 

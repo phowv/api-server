@@ -27,4 +27,6 @@ COPY --from=builder /app/main .
 
 EXPOSE 8080
 
+HEALTHCHECK CMD curl --fail http://localhost:8080/api/v1/health || exit 1
+
 CMD ["./main"]
