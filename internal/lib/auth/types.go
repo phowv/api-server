@@ -7,6 +7,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	roleAdmin = 3
+	roleModerator = 2
+	roleUser = 1
+)
+
 type Claims struct {
 	UserUuid uuid.UUID `json:"uid"`
 	Role string `json:"ur"`

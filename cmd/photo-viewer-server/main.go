@@ -12,16 +12,17 @@ import (
 	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
 	"photo-viewer-server/internal/http-server/handlers/url/view"
+	adminmw "photo-viewer-server/internal/http-server/middleware/admin-mw"
 	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
 	omitemptyjwtmw "photo-viewer-server/internal/http-server/middleware/omitempty-jwt-mw"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
+	libauth "photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/image"
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
-	libauth "photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
@@ -112,6 +113,12 @@ func main() {
 		photoRepository,
 	)
 
+	adminService := service.NewAdminService(
+		log,
+		userRepository,
+		txManager,
+	)
+
 	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
 
 	authRateLimit := 5
@@ -189,6 +196,13 @@ func main() {
 			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}", remove.RemoveCollection(log, collectionService))
+		})
+
+		apiv1Router.Group(func(r chi.Router) {
+			r.Use(adminmw.New(cfg.JwtAccessSecret))
+
+			r.Get("/users", view.ViewUsers(log, adminService))
+			r.Patch("/users/{user_uuid}", update.UpdateUser(log, adminService))
 		})
 	})
 

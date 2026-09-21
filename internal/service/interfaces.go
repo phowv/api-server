@@ -42,6 +42,7 @@ var (
 	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
 
 	ErrSessionNotFound = errors.New("session not found")
+	ErrForbidden = errors.New("forbidden")
 )
 
 type Healthchecker interface {
@@ -95,9 +96,14 @@ type UserRepo interface {
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
-	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
+	ActivateUser(ctx context.Context, uuid uuid.UUID) error
 	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
 	DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
+}
+
+type AdminUserRepo interface {
+	GetAllUsers(ctx context.Context) ([]entity.User, error)
+	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
 }
 
 type AccessRepo interface {

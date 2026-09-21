@@ -1,9 +1,12 @@
-package jwtmiddleware
+package adminmw
 
 import (
 	"net/http"
 	jwttoken "photo-viewer-server/internal/lib/api/jwt-token"
+	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
+
+	"github.com/go-chi/render"
 )
 func New(jwtSecret string) func(next http.Handler) http.Handler {
 	jwtSecretBytes := []byte(jwtSecret)
@@ -14,8 +17,15 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 				return
 			}
 
+			if auth.IsLessThanAdmin(claims.Role) {
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("access denied"))
+				return
+			}
+			
 			ctx := auth.ApplyAccessTokenClaims(r.Context(), claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
+

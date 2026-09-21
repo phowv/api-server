@@ -274,7 +274,7 @@ func (s *CollectionService) GetCollections(ctx context.Context, ownerLogin strin
 		user, err := s.userRepo.GetUserByUuid(ctx, collectionEntity.OwnerUuid)
 		if err != nil {
 			log.Error("failed to get collection's owner", slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
-			return nil, err
+			continue
 		}
 
 		collections[i] = SimpleCollectionInfo{

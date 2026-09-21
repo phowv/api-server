@@ -6,12 +6,20 @@ import (
 	"github.com/google/uuid"
 )
 
+type UserRole string
+
+const (
+	UserDefaultRole UserRole = "user"
+	UserModeratorRole UserRole = "moderator"
+	UserAdminRole UserRole = "admin"
+)
+
 type User struct {
 	UserUuid     				uuid.UUID `gorm:"column:user_uuid;primaryKey;type:uuid;default:uuid_generate_v4()"`
 	Login        				string    `gorm:"column:login"`
 	HashPassword				string		`gorm:"column:hash_password"`
 	Email								string		`gorm:"column:email"`
-	Role								string		`gorm:"column:role"`
+	Role								UserRole	`gorm:"column:role;type:user_role;not null"`
 	Description  				string    `gorm:"column:description"`
 	CreateDate					time.Time `gorm:"column:created_at"`
 	IsActive						bool 			`gorm:"column:is_active"`

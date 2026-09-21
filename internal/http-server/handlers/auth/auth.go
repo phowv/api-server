@@ -24,6 +24,7 @@ import (
 type userInfoResponse struct {
 	Login string `json:"user_login"`
 	Email string `json:"user_email"`
+	Role string `json:"user_role"`
 }
 
 type accessTokenResponse struct {
@@ -188,6 +189,7 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 		render.JSON(w, r, userInfoResponse{
 			Login: user.Login,
 			Email: user.Email,
+			Role: user.Role,
 		})
 	}
 }

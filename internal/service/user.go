@@ -119,7 +119,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		user := entity.User{
 			Login: data.Login,
 			Email: data.Email,
-			Role: "user",
+			Role: entity.UserDefaultRole,
 			Description: data.Description,
 			HashPassword: hashedPassword,
 			CreateDate: time.Now(),
@@ -212,9 +212,7 @@ func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials User
 			return fmt.Errorf("error delete all codes by user uuid: %w", err)
 		}
 
-		fields := make(map[string]any)
-		fields["is_active"] = true
-		err = s.userRepo.UpdateUser(txCtx, user.UserUuid, fields)
+		err = s.userRepo.ActivateUser(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("failed to set active user: %w", err)
@@ -250,7 +248,7 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: user.Role,
+		Role: string(user.Role),
 		Login: user.Login,
 		Email: user.Email,
 	}, nil
@@ -269,7 +267,7 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: user.Role,
+		Role: string(user.Role),
 		Login: user.Login,
 		Email: user.Email,
 	}, nil
