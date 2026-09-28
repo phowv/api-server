@@ -472,7 +472,7 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "multipart/form-data"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -490,11 +490,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
                         "description": "Photo UUID",
-                        "name": "photo_uuid",
-                        "in": "formData",
-                        "required": true
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/update.AddPhotoToCollectionRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -585,7 +587,7 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "multipart/form-data"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -596,11 +598,13 @@ const docTemplate = `{
                 "summary": "Create a collection",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "JSON: title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []",
-                        "name": "metadata",
-                        "in": "formData",
-                        "required": true
+                        "description": "title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.SaveCollectionInputMetadata"
+                        }
                     }
                 ],
                 "responses": {
@@ -787,7 +791,7 @@ const docTemplate = `{
                     }
                 ],
                 "consumes": [
-                    "multipart/form-data"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -805,11 +809,13 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
-                        "description": "JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)",
-                        "name": "metadata",
-                        "in": "formData",
-                        "required": true
+                        "description": "title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.PatchPhotoRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -1355,6 +1361,28 @@ const docTemplate = `{
                 }
             }
         },
+        "service.PatchPhotoRequest": {
+            "type": "object",
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "took_at": {
+                    "type": "string"
+                }
+            }
+        },
         "service.PatchUserRequest": {
             "type": "object",
             "properties": {
@@ -1427,6 +1455,31 @@ const docTemplate = `{
                 },
                 "photo_uuid": {
                     "type": "string"
+                }
+            }
+        },
+        "service.SaveCollectionInputMetadata": {
+            "type": "object",
+            "required": [
+                "access_level"
+            ],
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "photo_uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
                 }
             }
         },
@@ -1554,6 +1607,17 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 50,
                     "minLength": 2
+                }
+            }
+        },
+        "update.AddPhotoToCollectionRequest": {
+            "type": "object",
+            "required": [
+                "photo_uuid"
+            ],
+            "properties": {
+                "photo_uuid": {
+                    "type": "string"
                 }
             }
         },

@@ -31,6 +31,14 @@ type PhotoMetadata struct {
 	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
+type PatchPhotoRequest struct {
+	Title       *string                `json:"title,omitempty" validate:"omitempty,max=50"`
+	Description *string                `json:"description,omitempty" validate:"omitempty,max=200"`
+	CreatedAt   *time.Time             `json:"created_at,omitempty"`
+	TookAt      *time.Time             `json:"took_at,omitempty"`
+	AccessLevel *entity.AccessModifier `json:"access_level,omitempty" validate:"omitempty,access_modifier"`
+}
+
 type PhotoInfo struct {
 	PhotoUuid  uuid.UUID      `json:"photo_uuid"`
 	OwnerLogin string         `json:"owner_login"`
@@ -98,29 +106,31 @@ func NewPhotoService(
 	}
 }
 
-func metadataToMap(m *PhotoMetadata) map[string]any {
+func metadataToMap(m *PatchPhotoRequest) map[string]any {
 	if m == nil {
 		return nil
 	}
 	out := make(map[string]any)
 
-	if m.Title != "" {
-		out["title"] = m.Title
+	if m.Title != nil {
+		out["title"] = *m.Title
 	}
 
-	if m.Description != "" {
-		out["description"] = m.Description
+	if m.Description != nil {
+		out["description"] = *m.Description
 	}
 
-	if !m.CreatedAt.IsZero() {
-		out["created_at"] = m.CreatedAt
+	if m.CreatedAt != nil {
+		out["created_at"] = *m.CreatedAt
 	}
 
-	if !m.TookAt.IsZero() {
-		out["took_at"] = m.TookAt
+	if m.TookAt != nil {
+		out["took_at"] = *m.TookAt
 	}
 
-	out["access_level"] = m.AccessLevel
+	if m.AccessLevel != nil {
+		out["access_level"] = *m.AccessLevel
+	}
 
 	return out
 }
@@ -541,14 +551,14 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 	})
 }
 
-func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID, metadata PhotoMetadata, userUuid uuid.UUID) error {
+func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID, patchRequest *PatchPhotoRequest, userUuid uuid.UUID) error {
 	log := s.log.With(
 		slog.String("op", "service.UpdatePhotoInfo"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		return s.photoRepo.UpdatePhoto(txCtx, photoUuid, userUuid, metadataToMap(&metadata))
+		return s.photoRepo.UpdatePhoto(txCtx, photoUuid, userUuid, metadataToMap(patchRequest))
 	})
 
 	if err != nil {

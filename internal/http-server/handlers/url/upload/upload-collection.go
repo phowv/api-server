@@ -24,10 +24,10 @@ type CollecionCreateResponse struct {
 //
 //	@Summary		Create a collection
 //	@Tags				collections
-//	@Accept			multipart/form-data
+//	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []"
+//	@Param			body		body	service.SaveCollectionInputMetadata	true	"title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []"
 //	@Success		201			{object}	upload.CollecionCreateResponse
 //	@Failure		400			{object}	response.Response	"invalid metadata / validation"
 //	@Failure		401			{object}	response.Response	"token is empty / invalid token"
@@ -41,10 +41,8 @@ func UploadCollection(lg *slog.Logger, validator *vlpkg.Validate, collectionServ
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		jsonMetadata := r.FormValue("metadata")
-
 		var metadata service.SaveCollectionInputMetadata
-		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)

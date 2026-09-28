@@ -81,6 +81,21 @@ definitions:
     required:
     - access_level
     type: object
+  service.PatchPhotoRequest:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      created_at:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 50
+        type: string
+      took_at:
+        type: string
+    type: object
   service.PatchUserRequest:
     properties:
       collections_quota:
@@ -129,6 +144,23 @@ definitions:
         type: string
       photo_uuid:
         type: string
+    type: object
+  service.SaveCollectionInputMetadata:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      description:
+        maxLength: 200
+        type: string
+      photo_uuids:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 50
+        type: string
+    required:
+    - access_level
     type: object
   service.SaveTagInput:
     properties:
@@ -217,6 +249,13 @@ definitions:
         type: string
     required:
     - login
+    type: object
+  update.AddPhotoToCollectionRequest:
+    properties:
+      photo_uuid:
+        type: string
+    required:
+    - photo_uuid
     type: object
   update.AddPhotoToCollectionResponse:
     properties:
@@ -608,7 +647,7 @@ paths:
   /collection/{collection_uuid}/photos:
     post:
       consumes:
-      - multipart/form-data
+      - application/json
       parameters:
       - description: Collection UUID
         in: path
@@ -616,10 +655,11 @@ paths:
         required: true
         type: string
       - description: Photo UUID
-        in: formData
-        name: photo_uuid
+        in: body
+        name: body
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/update.AddPhotoToCollectionRequest'
       produces:
       - application/json
       responses:
@@ -681,14 +721,15 @@ paths:
       - collections
     post:
       consumes:
-      - multipart/form-data
+      - application/json
       parameters:
-      - description: 'JSON: title (≤50), description (≤200), access_level (private|protected|public),
-          photo_uuids []'
-        in: formData
-        name: metadata
+      - description: title (≤50), description (≤200), access_level (private|protected|public),
+          photo_uuids []
+        in: body
+        name: body
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/service.SaveCollectionInputMetadata'
       produces:
       - application/json
       responses:
@@ -812,19 +853,20 @@ paths:
       - photos
     patch:
       consumes:
-      - multipart/form-data
+      - application/json
       parameters:
       - description: Photo UUID
         in: path
         name: photo_uuid
         required: true
         type: string
-      - description: 'JSON: title (≤50), description (≤200), created_at, took_at,
-          access_level (private|protected|public)'
-        in: formData
-        name: metadata
+      - description: title (≤50), description (≤200), created_at, took_at, access_level
+          (private|protected|public)
+        in: body
+        name: body
         required: true
-        type: string
+        schema:
+          $ref: '#/definitions/service.PatchPhotoRequest'
       produces:
       - application/json
       responses:

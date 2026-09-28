@@ -27,11 +27,11 @@ type Response struct {
 //
 //	@Summary		Update photo metadata
 //	@Tags				photos
-//	@Accept			multipart/form-data
+//	@Accept			json
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			photo_uuid	path		string	true	"Photo UUID"
-//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)"
+//	@Param			body		body	service.PatchPhotoRequest	true	"title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)"
 //	@Success		200			{object}	update.Response
 //	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid request"
 //	@Failure		401			{object}	response.Response	"token is empty / invalid token"
@@ -45,10 +45,8 @@ func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		jsonMetadata := r.FormValue("metadata")
-
-		var metadata service.PhotoMetadata
-		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
+		var metadata service.PatchPhotoRequest
+		if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)
@@ -88,7 +86,7 @@ func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
 
-		err = photoService.UpdatePhotoInfo(r.Context(), photoUuid, metadata, userUuid)
+		err = photoService.UpdatePhotoInfo(r.Context(), photoUuid, &metadata, userUuid)
 
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
