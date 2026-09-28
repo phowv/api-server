@@ -31,7 +31,7 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 			}
 
 			log.Error("error get photos", sl.Err(err))
-			
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
 			return

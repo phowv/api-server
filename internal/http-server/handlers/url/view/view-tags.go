@@ -42,7 +42,7 @@ func ViewTags(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc 
 		if err != nil {
 			log.Error("error get tags", sl.Err(err))
 
-			if errors.Is(err, service.ErrPhotoNotFound) {				
+			if errors.Is(err, service.ErrPhotoNotFound) {
 				render.Status(r, http.StatusBadRequest)
 				render.JSON(w, r, response.Error("photo not found"))
 				return

@@ -31,20 +31,20 @@ type Config struct {
 	StorageUser     string `env:"MINIO_USER" env-required:"true"`
 	StoragePassword string `env:"MINIO_PASSWORD" env-required:"true"`
 
-	JwtAccessSecret	string `env:"JWT_ACCESS_SECRET" env-required:"true"`
-	JwtRefreshSecret string `env:"JWT_REFRESH_SECRET" env-required:"true"`
-	JwtAccessExpires time.Duration `env:"JWT_ACCESS_EXPIRES" env-required:"true"`
+	JwtAccessSecret   string        `env:"JWT_ACCESS_SECRET" env-required:"true"`
+	JwtRefreshSecret  string        `env:"JWT_REFRESH_SECRET" env-required:"true"`
+	JwtAccessExpires  time.Duration `env:"JWT_ACCESS_EXPIRES" env-required:"true"`
 	JwtRefreshExpires time.Duration `env:"JWT_REFRESH_EXPIRES" env-required:"true"`
 
-	SmtpHost				string `env:"SMTP_HOST" env-required:"false"`
-	SmtpUser				string `env:"SMTP_USER" env-required:"false"`
-	SmtpPassword		string `env:"SMTP_PASSWORD" env-required:"false"`
+	SmtpHost        string `env:"SMTP_HOST" env-required:"false"`
+	SmtpUser        string `env:"SMTP_USER" env-required:"false"`
+	SmtpPassword    string `env:"SMTP_PASSWORD" env-required:"false"`
 	SmtpFromAddress string `env:"SMTP_FROM_ADDRESS" env-required:"false"`
 
-	VerificationCode string `env:"VERIFICATION_CODE" env-required:"true"`
-	InitialPhotosQuota int `env:"INITIAL_PHOTOS_QUOTA" env-default:"0"`
+	VerificationCode   string `env:"VERIFICATION_CODE" env-required:"true"`
+	InitialPhotosQuota int    `env:"INITIAL_PHOTOS_QUOTA" env-default:"0"`
 
-	KeySignerSecret string `env:"KEY_SIGNER_SECRET" env-required:"true"`
+	KeySignerSecret   string        `env:"KEY_SIGNER_SECRET" env-required:"true"`
 	FileAccessExpires time.Duration `env:"FILE_ACCESS_EXPIRES" env-required:"true"`
 }
 

@@ -3,14 +3,14 @@ package view
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"net/http"
-	"photo-viewer-server/internal/lib/api/response"
-	"photo-viewer-server/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"log/slog"
+	"net/http"
+	"photo-viewer-server/internal/lib/api/response"
+	"photo-viewer-server/internal/service"
 )
 
 func ViewCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {

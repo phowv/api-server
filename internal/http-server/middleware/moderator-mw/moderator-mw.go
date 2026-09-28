@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 )
+
 func New(jwtSecret string) func(next http.Handler) http.Handler {
 	jwtSecretBytes := []byte(jwtSecret)
 	return func(next http.Handler) http.Handler {
@@ -22,10 +23,9 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 				render.JSON(w, r, response.Error("access denied"))
 				return
 			}
-			
+
 			ctx := auth.ApplyAccessTokenClaims(r.Context(), claims)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
-

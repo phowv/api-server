@@ -17,13 +17,13 @@ import (
 )
 
 const (
-	MaxBodySize = 10 * 1024 * 1024
+	MaxBodySize  = 10 * 1024 * 1024
 	MaxPhotoSize = MaxBodySize - 1024
 )
 
 type Response struct {
 	response.Response
-  PhotoUuid uuid.UUID `json:"photo_uuid"`
+	PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
 func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *service.PhotoService) http.HandlerFunc {
@@ -89,15 +89,15 @@ func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *servi
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
-			return 
+			return
 		}
 
 		log.Info("receive photo file", slog.Int64("size", header.Size))
 
 		input := service.SavePhotoInput{
-			Metadata: metadata,
-			Filename: header.Filename,
-			Content: fileBytes,
+			Metadata:    metadata,
+			Filename:    header.Filename,
+			Content:     fileBytes,
 			ContentType: header.Header.Get("Content-Type"),
 		}
 
@@ -120,7 +120,7 @@ func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *servi
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
-			return 
+			return
 		}
 
 		log.Info("saved photo", slog.Any("photo_uuid", photoUuid))
@@ -132,7 +132,7 @@ func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *servi
 
 func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
-		Response: response.OK(),
+		Response:  response.OK(),
 		PhotoUuid: photoUuid,
 	})
 }

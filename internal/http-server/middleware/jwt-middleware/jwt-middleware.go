@@ -5,6 +5,7 @@ import (
 	jwttoken "photo-viewer-server/internal/lib/api/jwt-token"
 	"photo-viewer-server/internal/lib/auth"
 )
+
 func New(jwtSecret string) func(next http.Handler) http.Handler {
 	jwtSecretBytes := []byte(jwtSecret)
 	return func(next http.Handler) http.Handler {

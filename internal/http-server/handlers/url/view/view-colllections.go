@@ -30,7 +30,7 @@ func ViewCollections(lg *slog.Logger, collectionService *service.CollectionServi
 			}
 
 			log.Error("error get photos", sl.Err(err))
-			
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
 			return

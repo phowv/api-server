@@ -20,11 +20,11 @@ import (
 
 type Response struct {
 	response.Response
-  PhotoUuid uuid.UUID `json:"photo_uuid"`
+	PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
 func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
-return func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.update.UpdatePhoto"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
@@ -98,7 +98,7 @@ return func(w http.ResponseWriter, r *http.Request) {
 
 func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
-		Response: response.OK(),
+		Response:  response.OK(),
 		PhotoUuid: photoUuid,
 	})
 }

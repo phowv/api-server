@@ -14,15 +14,15 @@ import (
 )
 
 type CollectionMetadata struct {
-	Title string `json:"title" validate:"max=50"`
-	Description string `json:"description" validate:"max=200"`
+	Title       string                `json:"title" validate:"max=50"`
+	Description string                `json:"description" validate:"max=200"`
 	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
 type SimpleCollectionInfo struct {
 	CollectionMetadata
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
-	OwnerLogin string `json:"owner_login"`
+	OwnerLogin     string    `json:"owner_login"`
 }
 
 type CollectionInfo struct {
@@ -36,13 +36,13 @@ type SaveCollectionInputMetadata struct {
 }
 
 type CollectionService struct {
-	log *slog.Logger
+	log            *slog.Logger
 	collectionRepo CollectionRepo
-	userRepo UserRepo
-	txManager storage.TxManager
-	accessRepo AccessRepo
-	keySigner PhotoKeySigner
-	photoRepo PhotoRepo
+	userRepo       UserRepo
+	txManager      storage.TxManager
+	accessRepo     AccessRepo
+	keySigner      PhotoKeySigner
+	photoRepo      PhotoRepo
 }
 
 func NewCollectionService(
@@ -55,13 +55,13 @@ func NewCollectionService(
 	photoRepo PhotoRepo,
 ) *CollectionService {
 	return &CollectionService{
-		log: log,
+		log:            log,
 		collectionRepo: collectionRepo,
-		userRepo: userRepo,
-		txManager: txManager,
-		accessRepo: accessRepo,
-		keySigner: keySigner,
-		photoRepo: photoRepo,
+		userRepo:       userRepo,
+		txManager:      txManager,
+		accessRepo:     accessRepo,
+		keySigner:      keySigner,
+		photoRepo:      photoRepo,
 	}
 }
 
@@ -94,11 +94,11 @@ func (s *CollectionService) SaveCollection(ctx context.Context, input *SaveColle
 		}
 
 		collection := entity.Collection{
-			OwnerUuid: ownerUuid,
-			Title: input.Title,
+			OwnerUuid:   ownerUuid,
+			Title:       input.Title,
 			Description: input.Description,
 			AccessLevel: input.AccessLevel,
-			Photos: photos,
+			Photos:      photos,
 		}
 
 		collectionUuid, err = s.collectionRepo.SaveCollection(txCtx, &collection)
@@ -177,7 +177,7 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 			log.Debug("photo is not permitted in collection")
 			continue
 		}
-	
+
 		accessKey, err := s.keySigner.Sign(
 			photoEntity.PhotoUuid,
 			photoEntity.OwnerUuid,
@@ -196,9 +196,9 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 		Photos: photosInfo,
 		SimpleCollectionInfo: SimpleCollectionInfo{
 			CollectionUuid: collectionEntity.CollectionUuid,
-			OwnerLogin: user.Login,
+			OwnerLogin:     user.Login,
 			CollectionMetadata: CollectionMetadata{
-				Title: collectionEntity.Title,
+				Title:       collectionEntity.Title,
 				Description: collectionEntity.Description,
 				AccessLevel: collectionEntity.AccessLevel,
 			},
@@ -279,9 +279,9 @@ func (s *CollectionService) GetCollections(ctx context.Context, ownerLogin strin
 
 		collections[i] = SimpleCollectionInfo{
 			CollectionUuid: collectionEntity.CollectionUuid,
-			OwnerLogin: user.Login,
+			OwnerLogin:     user.Login,
 			CollectionMetadata: CollectionMetadata{
-				Title: collectionEntity.Title,
+				Title:       collectionEntity.Title,
 				Description: collectionEntity.Description,
 				AccessLevel: collectionEntity.AccessLevel,
 			},
@@ -347,10 +347,14 @@ func (s *CollectionService) AddPhotoToCollection(ctx context.Context, collection
 		log.Error("failed to add photo to collection", sl.Err(err))
 
 		switch err {
-		case ErrCollectionNotFound: return ErrCollectionNotFound
-		case ErrPhotoNotFound: return ErrPhotoNotFound
-		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
-		case ErrPhotoInCollectionAlreadyExists: return ErrPhotoInCollectionAlreadyExists
+		case ErrCollectionNotFound:
+			return ErrCollectionNotFound
+		case ErrPhotoNotFound:
+			return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted:
+			return ErrCollectionActionIsNotPermitted
+		case ErrPhotoInCollectionAlreadyExists:
+			return ErrPhotoInCollectionAlreadyExists
 		}
 
 		return fmt.Errorf("failed to add photo to collection")
@@ -405,9 +409,12 @@ func (s *CollectionService) RemovePhotoFromCollection(ctx context.Context, colle
 		log.Error("failed to remove photo from collection", sl.Err(err))
 
 		switch err {
-		case ErrCollectionNotFound: return ErrCollectionNotFound
-		case ErrPhotoNotFound: return ErrPhotoNotFound
-		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
+		case ErrCollectionNotFound:
+			return ErrCollectionNotFound
+		case ErrPhotoNotFound:
+			return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted:
+			return ErrCollectionActionIsNotPermitted
 		}
 
 		return fmt.Errorf("failed to remove photo from collection")
@@ -518,10 +525,10 @@ func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, colle
 		return false, nil
 	}
 
-	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierProtected)== 0 &&
-	   entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierProtected) == 0 {
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierProtected) == 0 &&
+		entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierProtected) == 0 {
 		return true, nil
-	}		
+	}
 
 	log.Error("photo in collection access denied")
 	return false, nil
@@ -659,4 +666,3 @@ func (s *CollectionService) isCollectionPermitToRemove(ctx context.Context, coll
 	log.Error("collection access denied", slog.Any("collection_uuid", collection.CollectionUuid))
 	return false, nil
 }
-

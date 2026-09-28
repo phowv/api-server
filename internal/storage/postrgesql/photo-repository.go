@@ -32,7 +32,7 @@ func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (u
 		for i, tag := range photo.Tags {
 			photoTagEntities[i] = entity.PhotoTagEntity{
 				PhotoUuid: photo.PhotoUuid,
-				TagUuid: tag.TagUuid,
+				TagUuid:   tag.TagUuid,
 			}
 		}
 
@@ -90,7 +90,6 @@ func (s *PhotoRepository) GetPhotosByOwner(ctx context.Context, ownerUuid uuid.U
 	return photos, nil
 }
 
-
 func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
 	var photos []entity.Photo
 
@@ -118,7 +117,7 @@ func (s *PhotoRepository) DeletePhoto(ctx context.Context, uuid uuid.UUID, owner
 }
 
 func (s *PhotoRepository) UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error {
-  res := s.getDB(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
+	res := s.getDB(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {

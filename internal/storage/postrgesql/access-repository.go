@@ -50,13 +50,13 @@ func (s *AccessRepository) GetValidAccessLinkByPhotoUuid(ctx context.Context, ph
 func (s *AccessRepository) GrantAccessPhotoToUser(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) error {
 	permittedUserEntity := entity.PhotoPermittedUser{
 		PhotoUuid: photoUuid,
-		UserUuid: userUuid,
+		UserUuid:  userUuid,
 	}
-	
+
 	err := s.getDB(ctx).Create(&permittedUserEntity).Error
 
 	if err != nil {
-		return  fmt.Errorf("error persist photo permitted user entity: %w", err)
+		return fmt.Errorf("error persist photo permitted user entity: %w", err)
 	}
 
 	return nil
@@ -103,13 +103,13 @@ func (s *AccessRepository) GetValidAccessLinkByCollectionUuid(ctx context.Contex
 func (s *AccessRepository) GrantAccessCollectionToUser(ctx context.Context, collectionUuid uuid.UUID, userUuid uuid.UUID) error {
 	permittedUserEntity := entity.CollectionPermittedUser{
 		CollectionUuid: collectionUuid,
-		UserUuid: userUuid,
+		UserUuid:       userUuid,
 	}
-	
+
 	err := s.getDB(ctx).Create(&permittedUserEntity).Error
 
 	if err != nil {
-		return  fmt.Errorf("error persist collection permitted user entity: %w", err)
+		return fmt.Errorf("error persist collection permitted user entity: %w", err)
 	}
 
 	return nil
@@ -125,4 +125,3 @@ func (s *AccessRepository) IsUserCanAccessCollectionByUuid(ctx context.Context, 
 
 	return count > 0, nil
 }
-

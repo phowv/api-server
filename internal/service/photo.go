@@ -16,32 +16,32 @@ import (
 )
 
 const (
-	mediumImageSize = 800
+	mediumImageSize    = 800
 	mediumImagePostfix = "_medium"
 
-	smallImageSize = 300
+	smallImageSize    = 300
 	smallImagePostfix = "_small"
 )
 
 type PhotoMetadata struct {
-	Title string `json:"title" validate:"max=50"`
-	Description string `json:"description" validate:"max=200"`
-	CreatedAt time.Time `json:"created_at"`
-	TookAt time.Time `json:"took_at"`
+	Title       string                `json:"title" validate:"max=50"`
+	Description string                `json:"description" validate:"max=200"`
+	CreatedAt   time.Time             `json:"created_at"`
+	TookAt      time.Time             `json:"took_at"`
 	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
 type PhotoInfo struct {
-	PhotoUuid uuid.UUID `json:"photo_uuid"`
-	OwnerLogin string `json:"owner_login"`
-	Tags []TagSmallInfo `json:"tags"`
-	AccessKey string `json:"access_key"`
+	PhotoUuid  uuid.UUID      `json:"photo_uuid"`
+	OwnerLogin string         `json:"owner_login"`
+	Tags       []TagSmallInfo `json:"tags"`
+	AccessKey  string         `json:"access_key"`
 	PhotoMetadata
 }
 
 type PhotoSmallInfo struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
-	AccessKey string `json:"access_key"`
+	AccessKey string    `json:"access_key"`
 }
 
 type SavePhotoInputMetadata struct {
@@ -50,28 +50,28 @@ type SavePhotoInputMetadata struct {
 }
 
 type SavePhotoInput struct {
-	Metadata SavePhotoInputMetadata
-	Filename string
-	Content []byte
+	Metadata    SavePhotoInputMetadata
+	Filename    string
+	Content     []byte
 	ContentType string
 }
 
 type imageWithType struct {
-	name string
-	content []byte
+	name        string
+	content     []byte
 	contentType string
 }
 
 type PhotoService struct {
-	log *slog.Logger
-	photoRepo PhotoRepo
-	fileRepo FileRepo
-	bucketName string
-	userRepo UserRepo
+	log            *slog.Logger
+	photoRepo      PhotoRepo
+	fileRepo       FileRepo
+	bucketName     string
+	userRepo       UserRepo
 	imageProcessor ImageProcessor
-	txManager storage.TxManager
-	accessRepo AccessRepo
-	keySigner PhotoKeySigner
+	txManager      storage.TxManager
+	accessRepo     AccessRepo
+	keySigner      PhotoKeySigner
 }
 
 func NewPhotoService(
@@ -86,15 +86,15 @@ func NewPhotoService(
 	keySigner PhotoKeySigner,
 ) *PhotoService {
 	return &PhotoService{
-		log: log,
-		photoRepo: photoRepo,
-		fileRepo: fileRepo,
-		bucketName: bucketName,
-		userRepo: userRepo,
+		log:            log,
+		photoRepo:      photoRepo,
+		fileRepo:       fileRepo,
+		bucketName:     bucketName,
+		userRepo:       userRepo,
 		imageProcessor: imageProcessor,
-		txManager: txManager,
-		accessRepo: accessReoo,
-		keySigner: keySigner,
+		txManager:      txManager,
+		accessRepo:     accessReoo,
+		keySigner:      keySigner,
 	}
 }
 
@@ -111,7 +111,7 @@ func metadataToMap(m *PhotoMetadata) map[string]any {
 	if m.Description != "" {
 		out["description"] = m.Description
 	}
-	
+
 	if !m.CreatedAt.IsZero() {
 		out["created_at"] = m.CreatedAt
 	}
@@ -154,7 +154,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		err := s.userRepo.DecrementPhotosQuotaByUuid(txCtx, ownerUuid)
 
 		if err != nil {
-			if (errors.Is(err, storage.ErrUserQuotaIsNotEnough)) {
+			if errors.Is(err, storage.ErrUserQuotaIsNotEnough) {
 				return ErrUserQuotaIsNotEnough
 			}
 
@@ -165,7 +165,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		cleanup := func() error {
 			log.Info("cleanup saved images")
 			for _, image := range savedImages {
-			  err = s.fileRepo.DeleteFile(txCtx, ownerUuid.String(), image)
+				err = s.fileRepo.DeleteFile(txCtx, ownerUuid.String(), image)
 				if err != nil {
 					return fmt.Errorf("failed to cleanup image %s: %w", image, err)
 				}
@@ -220,16 +220,16 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 		}
 
 		photoEntity := entity.Photo{
-			Title: input.Metadata.Title,
-			Description: input.Metadata.Description,
-			Tags: tags,
-			CreatedDate: input.Metadata.CreatedAt,
-			TookAt: input.Metadata.TookAt,
-			RawFilename: rawFilename,
+			Title:          input.Metadata.Title,
+			Description:    input.Metadata.Description,
+			Tags:           tags,
+			CreatedDate:    input.Metadata.CreatedAt,
+			TookAt:         input.Metadata.TookAt,
+			RawFilename:    rawFilename,
 			MediumFilename: mediumFilename,
-			SmallFilename: smallFilename,
-			OwnerUuid: ownerUuid,
-			AccessLevel: input.Metadata.AccessLevel,
+			SmallFilename:  smallFilename,
+			OwnerUuid:      ownerUuid,
+			AccessLevel:    input.Metadata.AccessLevel,
 		}
 
 		photoUuid, err = s.photoRepo.SavePhoto(txCtx, &photoEntity)
@@ -238,7 +238,7 @@ func (s *PhotoService) SavePhoto(ctx context.Context, input SavePhotoInput, owne
 			log.Error("error save photo metadata", sl.Err(err))
 
 			if errors.Is(err, storage.ErrTagNotFound) {
-			  cleanup()
+				cleanup()
 				return ErrTagDoesNotExists
 			}
 
@@ -295,7 +295,7 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 		if ok {
 			if userUuid == user.UserUuid {
 				log.Debug("get all photos for user", slog.Any("user_uuid", userUuid))
-		  	photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
+				photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
 			}
 		} else {
 			photoEnities, err = s.photoRepo.GetPhotosByOwner(ctx, user.UserUuid)
@@ -335,15 +335,15 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 		)
 
 		photos[i] = PhotoInfo{
-			PhotoUuid: photoEntity.PhotoUuid,
+			PhotoUuid:  photoEntity.PhotoUuid,
 			OwnerLogin: user.Login,
-			Tags: photoTags,
-			AccessKey: accessKey,
+			Tags:       photoTags,
+			AccessKey:  accessKey,
 			PhotoMetadata: PhotoMetadata{
-				Title: photoEntity.Title,
+				Title:       photoEntity.Title,
 				Description: photoEntity.Description,
-				CreatedAt: photoEntity.CreatedDate,
-				TookAt: photoEntity.TookAt,
+				CreatedAt:   photoEntity.CreatedDate,
+				TookAt:      photoEntity.TookAt,
 				AccessLevel: photoEntity.AccessLevel,
 			},
 		}
@@ -366,11 +366,14 @@ func (s *PhotoService) GetPhotoFile(ctx context.Context, photoUuid uuid.UUID, ac
 
 	filename := photoKeyPayload.PhotoRawFile
 	switch photoSize {
-		case PhotoSizeSmall: filename = photoKeyPayload.PhotoSmallFile
-		case PhotoSizeMedium: filename = photoKeyPayload.PhotoMediumFile
-		case PhotoSizeRaw: filename = photoKeyPayload.PhotoRawFile
+	case PhotoSizeSmall:
+		filename = photoKeyPayload.PhotoSmallFile
+	case PhotoSizeMedium:
+		filename = photoKeyPayload.PhotoMediumFile
+	case PhotoSizeRaw:
+		filename = photoKeyPayload.PhotoRawFile
 	}
-	
+
 	rawPhoto, _, err := s.fileRepo.GetFile(ctx, photoKeyPayload.OwnerUuid.String(), filename)
 	if err != nil {
 		log.Error("error get photo file", sl.Err(err), slog.String("filename", filename))
@@ -395,7 +398,7 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 
 		log.Error("error get photo", sl.Err(err))
 		return nil, fmt.Errorf("error get photo: %w", err)
-  }
+	}
 
 	isPermit, err := s.isPhotoPermit(ctx, photoEntity)
 
@@ -433,15 +436,15 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 	}
 
 	photoInfo := PhotoInfo{
-		PhotoUuid: photoEntity.PhotoUuid,
+		PhotoUuid:  photoEntity.PhotoUuid,
 		OwnerLogin: user.Login,
-		Tags: photoTags,
-		AccessKey: accessKey,
+		Tags:       photoTags,
+		AccessKey:  accessKey,
 		PhotoMetadata: PhotoMetadata{
-			Title: photoEntity.Title,
+			Title:       photoEntity.Title,
 			Description: photoEntity.Description,
-			CreatedAt: photoEntity.CreatedDate,
-			TookAt: photoEntity.TookAt,
+			CreatedAt:   photoEntity.CreatedDate,
+			TookAt:      photoEntity.TookAt,
 			AccessLevel: photoEntity.AccessLevel,
 		},
 	}
@@ -545,7 +548,7 @@ func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID,
 	)
 
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-	  return s.photoRepo.UpdatePhoto(txCtx, photoUuid, userUuid, metadataToMap(&metadata))
+		return s.photoRepo.UpdatePhoto(txCtx, photoUuid, userUuid, metadataToMap(&metadata))
 	})
 
 	if err != nil {
@@ -629,9 +632,12 @@ func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (
 
 func StringToStoredPhotoType(value string) (StoredPhotoType, error) {
 	switch value {
-		case string(PhotoSizeRaw): return PhotoSizeRaw, nil
-		case string(PhotoSizeMedium): return PhotoSizeMedium, nil
-		case string(PhotoSizeSmall): return PhotoSizeSmall, nil
+	case string(PhotoSizeRaw):
+		return PhotoSizeRaw, nil
+	case string(PhotoSizeMedium):
+		return PhotoSizeMedium, nil
+	case string(PhotoSizeSmall):
+		return PhotoSizeSmall, nil
 	}
 	return "", ErrInvalidPhotoSize
 }

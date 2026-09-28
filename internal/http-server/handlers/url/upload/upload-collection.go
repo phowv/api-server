@@ -21,7 +21,7 @@ type CollecionCreateResponse struct {
 }
 
 func UploadCollection(lg *slog.Logger, validator *vlpkg.Validate, collectionService *service.CollectionService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {	
+	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.upload.UploadCollection"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
@@ -73,17 +73,16 @@ func UploadCollection(lg *slog.Logger, validator *vlpkg.Validate, collectionServ
 				return
 			}
 
-
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
-			return 
+			return
 		}
 
 		log.Info("saved collection", slog.Any("collection_uuid", collectionUuid))
 
 		render.Status(r, http.StatusCreated)
 		render.JSON(w, r, CollecionCreateResponse{
-			Response: response.OK(),
+			Response:       response.OK(),
 			CollectionUuid: collectionUuid,
 		})
 	}

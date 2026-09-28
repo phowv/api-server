@@ -35,7 +35,7 @@ func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService
 		render.Status(r, http.StatusOK)
 		render.JSON(w, r, healthcheckResponse{
 			Response: response.OK(),
-			Healthy: true,
+			Healthy:  true,
 		})
 	}
 }

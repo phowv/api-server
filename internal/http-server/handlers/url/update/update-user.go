@@ -65,7 +65,6 @@ func UpdateUser(lg *slog.Logger, adminService *service.AdminService) http.Handle
 			return
 		}
 
-
 		err = adminService.PatchUser(r.Context(), userUuid, &metadata)
 
 		if err != nil {

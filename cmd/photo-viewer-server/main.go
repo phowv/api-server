@@ -41,8 +41,8 @@ func main() {
 
 	isDevEnv := cfg.AppEnv == config.AppEnvDev
 	authConfig := &libauth.AuthConfig{
-		IsDevEnv: isDevEnv,
-		JwtAccessExpires: cfg.JwtAccessExpires,
+		IsDevEnv:          isDevEnv,
+		JwtAccessExpires:  cfg.JwtAccessExpires,
 		JwtRefreshExpires: cfg.JwtRefreshExpires,
 	}
 
@@ -119,7 +119,7 @@ func main() {
 		txManager,
 	)
 
-	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
+	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{storage, metadataStorage})
 
 	authRateLimit := 5
 	if isDevEnv {
@@ -127,10 +127,10 @@ func main() {
 	}
 
 	rateLimits := map[string]ratelimitmw.RateLimit{
-		"/api/v1/auth/login": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/login":    {Limit: authRateLimit, Window: time.Minute},
 		"/api/v1/auth/register": {Limit: authRateLimit, Window: time.Minute},
-		"/api/v1/auth/refresh": {Limit: authRateLimit, Window: time.Minute},
-		"/api/v1/auth/verify": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/refresh":  {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/verify":   {Limit: authRateLimit, Window: time.Minute},
 	}
 
 	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
@@ -239,7 +239,7 @@ func setupLogger(env string) *slog.Logger {
 	return log
 }
 
-func staticVerificationCodeGenerator(code string) func () (string, error) {
+func staticVerificationCodeGenerator(code string) func() (string, error) {
 	return func() (string, error) {
 		return code, nil
 	}

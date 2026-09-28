@@ -7,7 +7,7 @@ import (
 
 type InMemoryRateLimiter struct {
 	visits map[string][]time.Time
-	mx sync.Mutex
+	mx     sync.Mutex
 }
 
 func NewInMemoryRateLimiter() *InMemoryRateLimiter {

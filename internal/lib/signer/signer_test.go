@@ -12,24 +12,24 @@ import (
 )
 
 type testPhotoMetadata struct {
-	photoUuid uuid.UUID
-	ownerUuid uuid.UUID
-	rawFile string
+	photoUuid  uuid.UUID
+	ownerUuid  uuid.UUID
+	rawFile    string
 	mediumFile string
-	smallFile string
+	smallFile  string
 }
 
-func newTestSigner(ttl time.Duration) *signer.KeySigner{
+func newTestSigner(ttl time.Duration) *signer.KeySigner {
 	return signer.NewKeySigner("1234567890123456789012345678901234", ttl)
 }
 
 func newTestPhotoMetadata() *testPhotoMetadata {
 	return &testPhotoMetadata{
-		photoUuid: uuid.New(),
-		ownerUuid: uuid.New(),
-		rawFile: uuid.New().String(),
+		photoUuid:  uuid.New(),
+		ownerUuid:  uuid.New(),
+		rawFile:    uuid.New().String(),
 		mediumFile: uuid.New().String(),
-		smallFile: uuid.New().String(),
+		smallFile:  uuid.New().String(),
 	}
 }
 
@@ -54,7 +54,7 @@ func TestValidation_ValidateRightSignedData(t *testing.T) {
 	require.NoError(t, err)
 
 	payload, err := s.Validate(key, m.photoUuid)
-	
+
 	require.NoError(t, err)
 	assert.Equal(t, m.photoUuid, payload.PhotoUuid)
 	assert.Equal(t, m.ownerUuid, payload.OwnerUuid)

@@ -101,4 +101,3 @@ func (s *AuthRepository) GetValidVerificationCodeByUserUuid(ctx context.Context,
 
 	return &verificationCode, nil
 }
-

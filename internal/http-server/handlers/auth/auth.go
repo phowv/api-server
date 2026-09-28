@@ -24,7 +24,7 @@ import (
 type userInfoResponse struct {
 	Login string `json:"user_login"`
 	Email string `json:"user_email"`
-	Role string `json:"user_role"`
+	Role  string `json:"user_role"`
 }
 
 type accessTokenResponse struct {
@@ -144,10 +144,10 @@ func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwt
 			return
 		}
 
-	  tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
+		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
-			
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("failed to create tokens"))
 			return
@@ -189,7 +189,7 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 		render.JSON(w, r, userInfoResponse{
 			Login: user.Login,
 			Email: user.Email,
-			Role: user.Role,
+			Role:  user.Role,
 		})
 	}
 }
@@ -205,9 +205,9 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 		if err != nil {
 			log.Debug("missing refresh token cookie")
 
-	    render.Status(r, http.StatusUnauthorized)
+			render.Status(r, http.StatusUnauthorized)
 			render.JSON(w, r, response.Error("missing authentication"))
-			return 
+			return
 		}
 
 		log.Info("parsed cookie refresh token")
@@ -226,30 +226,30 @@ func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtR
 		if err != nil || !refreshToken.Valid {
 			log.Debug("invalid refresh token")
 
-	    render.Status(r, http.StatusUnauthorized)
+			render.Status(r, http.StatusUnauthorized)
 			render.JSON(w, r, response.Error("invalid token"))
-			return 
+			return
 		}
 
 		SessionUuid := refreshClaims.SessionUuid
 		userUuid := refreshClaims.UserUuid
-		
+
 		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
 
 		user, err := userService.RefreshSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
 		if err != nil {
 			log.Error("failed to authenticate session", sl.Err(err))
 
-	    render.Status(r, http.StatusUnauthorized)
+			render.Status(r, http.StatusUnauthorized)
 			render.JSON(w, r, response.Error("invalid token"))
-			return 
+			return
 		}
 		log.Debug("success authenticate user session")
 
 		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
 		if err != nil {
 			log.Error("failed to create jwt token pair", sl.Err(err))
-			
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("failed to create tokens"))
 			return
@@ -352,7 +352,7 @@ func LogoutUser(lg *slog.Logger, userService *service.UserService) http.HandlerF
 }
 
 type createJwtTokensResult struct {
-	tokenString string
+	tokenString   string
 	refreshCookie *http.Cookie
 }
 
@@ -363,8 +363,8 @@ func createJwtTokens(
 	sessionUuid := uuid.New()
 
 	claims := &auth.Claims{
-		UserUuid: user.UserUuid,
-		Role: user.Role,
+		UserUuid:    user.UserUuid,
+		Role:        user.Role,
 		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
@@ -379,7 +379,7 @@ func createJwtTokens(
 
 	refreshExpirarionTime := time.Now().Add(authConfig.JwtRefreshExpires)
 	refreshClaims := &auth.RefreshClaims{
-		UserUuid: user.UserUuid,
+		UserUuid:    user.UserUuid,
 		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpirarionTime),
@@ -403,17 +403,17 @@ func createJwtTokens(
 	}
 
 	cookie := &http.Cookie{
-		Name: "refresh_token",
-		Value: refreshTokenString,
-		Path: apiPrefix + "/auth/refresh",
+		Name:     "refresh_token",
+		Value:    refreshTokenString,
+		Path:     apiPrefix + "/auth/refresh",
 		HttpOnly: true,
-		Secure: true,
-		Expires: refreshExpirarionTime,
+		Secure:   true,
+		Expires:  refreshExpirarionTime,
 		SameSite: sameSite,
 	}
 
 	return &createJwtTokensResult{
-		tokenString: tokenString,
+		tokenString:   tokenString,
 		refreshCookie: cookie,
 	}, nil
 }
@@ -422,7 +422,7 @@ func sendJwtTokens(w http.ResponseWriter, r *http.Request, tokens *createJwtToke
 	http.SetCookie(w, tokens.refreshCookie)
 
 	render.JSON(w, r, accessTokenResponse{
-		Response: response.OK(),
+		Response:    response.OK(),
 		AccessToken: tokens.tokenString,
-	})	
+	})
 }

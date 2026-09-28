@@ -42,7 +42,7 @@ func (s *Storage) Ping(ctx context.Context) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 2 * time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	return db.PingContext(ctx)
 }

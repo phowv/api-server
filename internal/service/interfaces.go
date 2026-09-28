@@ -11,38 +11,37 @@ import (
 
 type StoredPhotoType string
 
-
 const (
-	PhotoSizeSmall StoredPhotoType = "small"
+	PhotoSizeSmall  StoredPhotoType = "small"
 	PhotoSizeMedium StoredPhotoType = "medium"
-	PhotoSizeRaw StoredPhotoType = "raw"
+	PhotoSizeRaw    StoredPhotoType = "raw"
 )
 
 var (
-	ErrInvalidPhotoSize = errors.New("invalid photo size")
-	ErrPhotoNotFound = errors.New("photo not found")
+	ErrInvalidPhotoSize    = errors.New("invalid photo size")
+	ErrPhotoNotFound       = errors.New("photo not found")
 	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
 
 	ErrTagDoesNotExists = errors.New("tag doesn't exists")
 	ErrTagAlreadyExists = errors.New("tag already exists")
 
-	ErrCollectionAlreadyExists = errors.New("collection already exists")
-	ErrCollectionNotFound = errors.New("collection not found")
+	ErrCollectionAlreadyExists  = errors.New("collection already exists")
+	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
 
 	ErrCollectionActionIsNotPermitted = errors.New("collection action is not permitted")
 	ErrPhotoInCollectionAlreadyExists = errors.New("photo in collection already exists")
 
-	ErrUserNotFound = errors.New("user already exists")
-	ErrUserExists = errors.New("user already exists")
-	ErrUserPasswordTooShort = errors.New("password too short")
+	ErrUserNotFound              = errors.New("user already exists")
+	ErrUserExists                = errors.New("user already exists")
+	ErrUserPasswordTooShort      = errors.New("password too short")
 	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
-	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
-	ErrUserIsNotActive = errors.New("user is not active")
-	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
+	ErrUserInvalidAuthorization  = errors.New("invalid user authorization")
+	ErrUserIsNotActive           = errors.New("user is not active")
+	ErrUserQuotaIsNotEnough      = errors.New("quota is not enough")
 
 	ErrSessionNotFound = errors.New("session not found")
-	ErrForbidden = errors.New("forbidden")
+	ErrForbidden       = errors.New("forbidden")
 )
 
 type Healthchecker interface {
@@ -53,11 +52,11 @@ type Healthchecker interface {
 type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
-  GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
-  GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
+	GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
+	GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
 	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
-  UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
+	UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
 }
 
 type TagRepo interface {
@@ -114,11 +113,11 @@ type AccessRepo interface {
 }
 
 type ImageProcessor interface {
-  ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
+	ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
 }
 
 type PhotoKeySigner interface {
-  Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
+	Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
 	Validate(token string, expectedPhotoUuid uuid.UUID) (*signer.FileKeyPayload, error)
 }
 
@@ -131,5 +130,5 @@ type SessionRepo interface {
 type VerificationCodeRepo interface {
 	SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error
 	DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error
-  GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
+	GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
 }

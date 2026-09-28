@@ -15,7 +15,7 @@ import (
 
 type TagSmallInfo struct {
 	TagUuid uuid.UUID `json:"tag_uuid"`
-	TagName string `json:"tag_name"`
+	TagName string    `json:"tag_name"`
 }
 
 type TagInfo struct {
@@ -24,20 +24,20 @@ type TagInfo struct {
 }
 
 type SaveTagInput struct {
-	TagName string `json:"tag_name" validate:"required,min=2,max=50"`
+	TagName        string `json:"tag_name" validate:"required,min=2,max=50"`
 	TagDescription string `json:"tag_description,omitempty" validate:"max=200"`
 }
 
 type TagService struct {
-	log *slog.Logger
-	tagRepo TagRepo
+	log       *slog.Logger
+	tagRepo   TagRepo
 	txManager storage.TxManager
 }
 
 func NewTagService(log *slog.Logger, tagRepo TagRepo, txManager storage.TxManager) *TagService {
 	return &TagService{
-		log: log,
-		tagRepo: tagRepo,
+		log:       log,
+		tagRepo:   tagRepo,
 		txManager: txManager,
 	}
 }
@@ -52,7 +52,7 @@ func (s *TagService) SaveTag(ctx context.Context, tagInput SaveTagInput) (uuid.U
 
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
 		newTag := entity.Tag{
-			Name: tagInput.TagName,
+			Name:        tagInput.TagName,
 			Description: tagInput.TagDescription,
 		}
 

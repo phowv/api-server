@@ -17,43 +17,43 @@ import (
 
 const (
 	verificationCodeExpirationTime = 15 * time.Minute
-	minimalPasswordLength = 8
+	minimalPasswordLength          = 8
 )
 
 type UserData struct {
-	Login string `json:"login" validate:"required,min=2,max=50"`
-	Email string `json:"email" validate:"required,min=2,max=50"`
-	Password string `json:"password" validate:"required,min=8,max=50"`
+	Login       string `json:"login" validate:"required,min=2,max=50"`
+	Email       string `json:"email" validate:"required,min=2,max=50"`
+	Password    string `json:"password" validate:"required,min=8,max=50"`
 	Description string `json:"description"`
 }
 
 type UserAuthCredentials struct {
-	Login string `json:"login" validate:"required,min=2,max=50"`
+	Login    string `json:"login" validate:"required,min=2,max=50"`
 	Password string `json:"password"`
 }
 
 type UserVerifyCredentials struct {
 	Login string `json:"login" validate:"required,min=2,max=50"`
-	Code string `json:"code"`
+	Code  string `json:"code"`
 }
 
 type UserService struct {
-	log *slog.Logger
-	userRepo UserRepo
-	sessionRepo SessionRepo
-	mailService *mail.MailService
-	verificationCodeRepo VerificationCodeRepo
+	log                      *slog.Logger
+	userRepo                 UserRepo
+	sessionRepo              SessionRepo
+	mailService              *mail.MailService
+	verificationCodeRepo     VerificationCodeRepo
 	generateVerificationCode func() (string, error)
-	fileRepo FileRepo
-	initinalPhotosQuota int
-	txManager storage.TxManager
+	fileRepo                 FileRepo
+	initinalPhotosQuota      int
+	txManager                storage.TxManager
 }
 
 type User struct {
 	UserUuid uuid.UUID
-	Role string
-	Login string
-	Email string
+	Role     string
+	Login    string
+	Email    string
 }
 
 func NewUserService(
@@ -68,15 +68,15 @@ func NewUserService(
 	txManager storage.TxManager,
 ) *UserService {
 	return &UserService{
-		log: log,
-		userRepo: userRepo,
-		sessionRepo: sessionRepo,
-		mailService: mailService,
-		verificationCodeRepo: verificationCodeRepo,
+		log:                      log,
+		userRepo:                 userRepo,
+		sessionRepo:              sessionRepo,
+		mailService:              mailService,
+		verificationCodeRepo:     verificationCodeRepo,
 		generateVerificationCode: generateVerificationCode,
-		fileRepo: fileRepo,
-		initinalPhotosQuota: initinalPhotosQuota,
-		txManager: txManager,
+		fileRepo:                 fileRepo,
+		initinalPhotosQuota:      initinalPhotosQuota,
+		txManager:                txManager,
 	}
 }
 
@@ -92,7 +92,7 @@ func comparePasswords(password, hash string) bool {
 
 func hashToken(token string) (string, error) {
 	digest := sha256.Sum256([]byte(token))
-  bytes, err := bcrypt.GenerateFromPassword(digest[:], 14)
+	bytes, err := bcrypt.GenerateFromPassword(digest[:], 14)
 
 	return string(bytes), err
 }
@@ -117,14 +117,14 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
 		user := entity.User{
-			Login: data.Login,
-			Email: data.Email,
-			Role: entity.UserDefaultRole,
-			Description: data.Description,
+			Login:        data.Login,
+			Email:        data.Email,
+			Role:         entity.UserDefaultRole,
+			Description:  data.Description,
 			HashPassword: hashedPassword,
-			CreateDate: time.Now(),
-			IsActive: false,
-			PhotosQuota: s.initinalPhotosQuota,
+			CreateDate:   time.Now(),
+			IsActive:     false,
+			PhotosQuota:  s.initinalPhotosQuota,
 		}
 
 		existingUser, err := s.userRepo.GetUserByEmail(txCtx, data.Email)
@@ -167,13 +167,13 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		}
 
 		verificationCode := entity.VerificationCode{
-			UserUuid: id,
-			HashCode: hashedCode,
+			UserUuid:    id,
+			HashCode:    hashedCode,
 			CreatedDate: time.Now(),
-			ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
+			ExpiresAt:   time.Now().Add(verificationCodeExpirationTime),
 		}
 
-		 err = s.verificationCodeRepo.SaveVerificationCode(txCtx, &verificationCode)
+		err = s.verificationCodeRepo.SaveVerificationCode(txCtx, &verificationCode)
 
 		if err != nil {
 			return fmt.Errorf("failed to save verification code: %w", err)
@@ -201,7 +201,7 @@ func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials User
 		if err != nil {
 			return fmt.Errorf("error get verification code: %w", err)
 		}
-		
+
 		if !comparePasswords(userVerifyCredentials.Code, code.HashCode) {
 			return ErrUserInvalidAuthentication
 		}
@@ -239,7 +239,7 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 	}
 
 	if !user.IsActive {
-		return nil, ErrUserIsNotActive 
+		return nil, ErrUserIsNotActive
 	}
 
 	if !comparePasswords(userCredentials.Password, user.HashPassword) {
@@ -248,9 +248,9 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: string(user.Role),
-		Login: user.Login,
-		Email: user.Email,
+		Role:     string(user.Role),
+		Login:    user.Login,
+		Email:    user.Email,
 	}, nil
 }
 
@@ -260,16 +260,16 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 	if err != nil {
 		return nil, fmt.Errorf("error get user: %w", err)
 	}
-	
+
 	if !user.IsActive {
-		return nil, ErrUserIsNotActive 
+		return nil, ErrUserIsNotActive
 	}
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: string(user.Role),
-		Login: user.Login,
-		Email: user.Email,
+		Role:     string(user.Role),
+		Login:    user.Login,
+		Email:    user.Email,
 	}, nil
 }
 
@@ -282,10 +282,10 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 
 	session := entity.Session{
 		SessionUuid: sessionUuid,
-		UserUuid: userUuid,
-		ExpiresAt: expiresAt,
-		HashToken: hashToken,
-		IsRevoked: false,
+		UserUuid:    userUuid,
+		ExpiresAt:   expiresAt,
+		HashToken:   hashToken,
+		IsRevoked:   false,
 	}
 
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {

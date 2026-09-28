@@ -15,23 +15,23 @@ import (
 )
 
 type PatchUserRequest struct {
-	Role *entity.UserRole `json:"user_role,omitempty" validate:"omitempty,oneof=user moderator"`
-	PhotosQuota *int `json:"photos_quota,omitempty" validate:"omitempty,min=0"`
-	CollectionsQuota *int `json:"collections_quota,omitempty" validate:"omitempty,min=0"`
+	Role             *entity.UserRole `json:"user_role,omitempty" validate:"omitempty,oneof=user moderator"`
+	PhotosQuota      *int             `json:"photos_quota,omitempty" validate:"omitempty,min=0"`
+	CollectionsQuota *int             `json:"collections_quota,omitempty" validate:"omitempty,min=0"`
 }
 
 type UserFullInformation struct {
 	User
-	PhotosQuota int
+	PhotosQuota      int
 	CollectionsQuota int
-	IsActive bool
-	CreateDate time.Time
+	IsActive         bool
+	CreateDate       time.Time
 }
 
 type AdminService struct {
-	log *slog.Logger
+	log           *slog.Logger
 	adminUserRepo AdminUserRepo
-	txManager storage.TxManager
+	txManager     storage.TxManager
 }
 
 func NewAdminService(
@@ -40,9 +40,9 @@ func NewAdminService(
 	txManager storage.TxManager,
 ) *AdminService {
 	return &AdminService{
-		log: log,
+		log:           log,
 		adminUserRepo: adminUserRepo,
-		txManager: txManager,
+		txManager:     txManager,
 	}
 }
 
@@ -59,20 +59,20 @@ func (s *AdminService) GetUsers(ctx context.Context) ([]UserFullInformation, err
 		return nil, fmt.Errorf("failed to get users")
 	}
 
-  users := make([]UserFullInformation, len(userEntities))
+	users := make([]UserFullInformation, len(userEntities))
 
 	for i, userEntity := range userEntities {
 		users[i] = UserFullInformation{
 			User: User{
 				UserUuid: userEntity.UserUuid,
-				Login: userEntity.Login,
-				Email: userEntity.Email,
-				Role: string(userEntity.Role),
+				Login:    userEntity.Login,
+				Email:    userEntity.Email,
+				Role:     string(userEntity.Role),
 			},
-			IsActive: userEntity.IsActive,
-			PhotosQuota: userEntity.PhotosQuota,
+			IsActive:         userEntity.IsActive,
+			PhotosQuota:      userEntity.PhotosQuota,
 			CollectionsQuota: userEntity.CollectionsQuota,
-			CreateDate: userEntity.CreateDate,
+			CreateDate:       userEntity.CreateDate,
 		}
 	}
 
@@ -86,7 +86,7 @@ func (s *AdminService) PatchUser(ctx context.Context, userUuid uuid.UUID, reques
 	)
 
 	fields := make(map[string]any)
-	
+
 	if request.Role != nil {
 		fields["role"] = *request.Role
 	}

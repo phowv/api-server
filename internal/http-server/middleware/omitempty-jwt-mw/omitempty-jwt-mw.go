@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/render"
 )
+
 func New(jwtSecret string) func(next http.Handler) http.Handler {
 	jwtSecretBytes := []byte(jwtSecret)
 	return func(next http.Handler) http.Handler {
@@ -47,4 +48,3 @@ func New(jwtSecret string) func(next http.Handler) http.Handler {
 		})
 	}
 }
-

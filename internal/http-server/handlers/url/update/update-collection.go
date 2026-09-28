@@ -16,7 +16,7 @@ import (
 type AddPhotoToCollectionResponse struct {
 	response.Response
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
-	PhotoUuid uuid.UUID `json:"photo_uuid"`
+	PhotoUuid      uuid.UUID `json:"photo_uuid"`
 }
 
 func AddPhotoToCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
@@ -85,7 +85,7 @@ func AddPhotoToCollection(lg *slog.Logger, collectionService *service.Collection
 				render.JSON(w, r, response.Error("photo in collection already exists"))
 				return
 			}
-	
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
 			return
@@ -95,9 +95,9 @@ func AddPhotoToCollection(lg *slog.Logger, collectionService *service.Collection
 
 		render.Status(r, http.StatusCreated)
 		render.JSON(w, r, &AddPhotoToCollectionResponse{
-			Response: response.OK(),
+			Response:       response.OK(),
 			CollectionUuid: collectionUuid,
-			PhotoUuid: photoUuid,
+			PhotoUuid:      photoUuid,
 		})
 	}
 }

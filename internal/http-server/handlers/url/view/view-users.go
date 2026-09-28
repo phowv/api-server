@@ -14,14 +14,14 @@ import (
 )
 
 type UserInfo struct {
-	UserUuid uuid.UUID `json:"user_uuid"`
-	Role string `json:"role"`
-	Login string `json:"user_login"`
-	Email string `json:"user_email"`
-	PhotosQuota int `json:"photos_quota"`
-	CollectionsQuota int `json:"collections_quota"`
-	IsActive bool `json:"is_active"`
-	CreateDate time.Time `json:"created_at"`
+	UserUuid         uuid.UUID `json:"user_uuid"`
+	Role             string    `json:"role"`
+	Login            string    `json:"user_login"`
+	Email            string    `json:"user_email"`
+	PhotosQuota      int       `json:"photos_quota"`
+	CollectionsQuota int       `json:"collections_quota"`
+	IsActive         bool      `json:"is_active"`
+	CreateDate       time.Time `json:"created_at"`
 }
 
 type UsersInfoResponse struct {
@@ -50,21 +50,21 @@ func ViewUsers(lg *slog.Logger, adminService *service.AdminService) http.Handler
 
 		for i, user := range users {
 			usersInfo[i] = UserInfo{
-				UserUuid: user.UserUuid,
-				Role: user.Role,
-				Login: user.Login,
-				Email: user.Email,
-				PhotosQuota: user.PhotosQuota,
+				UserUuid:         user.UserUuid,
+				Role:             user.Role,
+				Login:            user.Login,
+				Email:            user.Email,
+				PhotosQuota:      user.PhotosQuota,
 				CollectionsQuota: user.CollectionsQuota,
-				IsActive: user.IsActive,
-				CreateDate: user.CreateDate,
+				IsActive:         user.IsActive,
+				CreateDate:       user.CreateDate,
 			}
 		}
 
 		render.Status(r, http.StatusOK)
 		render.JSON(w, r, &UsersInfoResponse{
 			Response: response.OK(),
-			Users: usersInfo,
+			Users:    usersInfo,
 		})
 	}
 }

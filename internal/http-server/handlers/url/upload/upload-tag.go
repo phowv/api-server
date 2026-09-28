@@ -18,7 +18,7 @@ import (
 
 type TagCreateResponse struct {
 	response.Response
-  TagUuid uuid.UUID `json:"tag_uuid"`
+	TagUuid uuid.UUID `json:"tag_uuid"`
 }
 
 func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.TagService) http.HandlerFunc {
@@ -79,7 +79,7 @@ func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.T
 		render.Status(r, http.StatusCreated)
 		render.JSON(w, r, TagCreateResponse{
 			Response: response.OK(),
-			TagUuid: tagUuid,
+			TagUuid:  tagUuid,
 		})
 	}
 }
