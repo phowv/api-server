@@ -85,9 +85,19 @@ func (s *AdminService) PatchUser(ctx context.Context, userUuid uuid.UUID, reques
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
+	currentUserUuid, ok := ctx.Value("user_uuid").(uuid.UUID)
+	if !ok {
+		log.Error("invalid user_uuid in ctx", slog.Any("user_uuid", ctx.Value("user_uuid")))
+		return fmt.Errorf("invalid user_uuid")
+	}
+
 	fields := make(map[string]any)
 
 	if request.Role != nil {
+		if currentUserUuid == userUuid {
+			return ErrOperationIsNotPermitted
+		}
+
 		fields["role"] = *request.Role
 	}
 	if request.PhotosQuota != nil {

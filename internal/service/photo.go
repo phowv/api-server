@@ -512,7 +512,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
-				return err
+				return ErrPhotoNotFound
 			}
 
 			return fmt.Errorf("failed to delete photo: %w", err)

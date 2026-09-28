@@ -17,7 +17,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// UpdateUser patches a user's role and quotas (admin only). All fields are optional.
+// UpdateUser patches a user's role and quotas (admin only). All fields are optional. Update role possible only to other users.
 //
 //	@Summary		Update user (role / quotas)
 //	@Tags				users
@@ -84,14 +84,17 @@ func UpdateUser(lg *slog.Logger, adminService *service.AdminService) http.Handle
 		if err != nil {
 			log.Error("failed to patch user", sl.Err(err))
 
-			if errors.Is(err, service.ErrUserNotFound) {
+			switch {
+			case errors.Is(err, service.ErrUserNotFound):
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("user not found"))
-				return
+			case errors.Is(err, service.ErrOperationIsNotPermitted):
+				render.Status(r, http.StatusForbidden)
+				render.JSON(w, r, response.Error("operation is not permitted"))	
+			default:
+				render.Status(r, http.StatusInternalServerError)
+				render.JSON(w, r, response.Error("internal error"))
 			}
-
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("internal error"))
 			return
 		}
 

@@ -165,10 +165,14 @@ func (s *PhotoRepository) GetTag(ctx context.Context, tagUuid uuid.UUID) (*entit
 }
 
 func (s *PhotoRepository) DeleteTag(ctx context.Context, tagUuid uuid.UUID) error {
-	err := s.db.Delete(entity.Tag{}, tagUuid).Error
+	res := s.db.Delete(entity.Tag{}, tagUuid)
 
-	if err != nil {
-		return fmt.Errorf("error delete tag: %w", err)
+	if res.Error != nil {
+		return fmt.Errorf("error delete tag: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrTagNotFound
 	}
 
 	return nil

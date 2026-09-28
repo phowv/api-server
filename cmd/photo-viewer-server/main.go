@@ -228,6 +228,7 @@ func main() {
 
 			r.Get("/users", view.ViewUsers(log, adminService))
 			r.Patch("/users/{user_uuid}", update.UpdateUser(log, adminService))
+			r.Delete("/tags/{tag_uuid}", remove.RemoveTag(log, tagService))
 		})
 	})
 

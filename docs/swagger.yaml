@@ -1077,6 +1077,42 @@ paths:
       summary: Create a tag
       tags:
       - tags
+  /tags/{photo_uuid}:
+    delete:
+      parameters:
+      - description: Tag UUID
+        in: path
+        name: tag_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a tag
+      tags:
+      - tags
   /users:
     get:
       produces:

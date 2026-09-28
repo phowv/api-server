@@ -123,3 +123,26 @@ func (s *TagService) GetTags(ctx context.Context, photoUuid uuid.UUID) ([]TagInf
 
 	return tagsInfo, nil
 }
+
+func (s *TagService) DeleteTag(ctx context.Context, tagUuid uuid.UUID) error {
+	log := s.log.With(
+		slog.String("op", "service.DeleteTag"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		return s.tagRepo.DeleteTag(txCtx, tagUuid)
+	})
+
+	if err != nil {
+		log.Error("failed to remove tag", slog.Any("tag_uuid", tagUuid), sl.Err(err))
+
+		if errors.Is(err, storage.ErrTagNotFound) {
+			return ErrTagDoesNotExists
+		}
+
+		return fmt.Errorf("failed to remove tag")
+	}
+
+	return nil
+}

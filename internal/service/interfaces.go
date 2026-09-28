@@ -42,6 +42,8 @@ var (
 
 	ErrSessionNotFound = errors.New("session not found")
 	ErrForbidden       = errors.New("forbidden")
+
+	ErrOperationIsNotPermitted = errors.New("operation is not permitted")
 )
 
 type Healthchecker interface {
@@ -65,6 +67,7 @@ type TagRepo interface {
 	GetAllTags(ctx context.Context) ([]entity.Tag, error)
 	GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error)
 	GetTagByName(ctx context.Context, tagName string) (*entity.Tag, error)
+	DeleteTag(ctx context.Context, tagUuid uuid.UUID) error
 }
 
 type FileRepo interface {

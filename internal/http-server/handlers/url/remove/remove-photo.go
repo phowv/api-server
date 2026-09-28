@@ -54,13 +54,20 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
+		userUuid, ok := r.Context().Value("user_uuid").(uuid.UUID)
+		if !ok {
+			log.Error("invalid user_uuid in ctx", slog.Any("user_uuid", r.Context().Value("user_uuid")))
+
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, response.Error("internal error"))
+			return
+		}
 
 		err = photoService.DeletePhoto(r.Context(), photoUuid, userUuid)
 		if err != nil {
 			log.Error("error remove photo", sl.Err(err))
 
-			if errors.Is(err, storage.ErrPhotoNotFound) {
+			if errors.Is(err, service.ErrPhotoNotFound) {
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("not found"))
 				return
