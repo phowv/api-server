@@ -19,6 +19,22 @@ type AddPhotoToCollectionResponse struct {
 	PhotoUuid      uuid.UUID `json:"photo_uuid"`
 }
 
+// AddPhotoToCollection adds a photo to a collection.
+//
+//	@Summary		Add photo to collection
+//	@Tags				collections
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			collection_uuid	path		string	true	"Collection UUID"
+//	@Param			photo_uuid		formData	string	true	"Photo UUID"
+//	@Success		201			{object}	update.AddPhotoToCollectionResponse
+//	@Failure		400			{object}	response.Response	"invalid request / photo in collection already exists"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"add to collection is not permitted"
+//	@Failure		404			{object}	response.Response	"collection not found / photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/collection/{collection_uuid}/photos [post]
 func AddPhotoToCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -102,6 +118,21 @@ func AddPhotoToCollection(lg *slog.Logger, collectionService *service.Collection
 	}
 }
 
+// RemovePhotoFromCollection removes a photo from a collection.
+//
+//	@Summary		Remove photo from collection
+//	@Tags				collections
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			collection_uuid	path		string	true	"Collection UUID"
+//	@Param			photo_uuid		path		string	true	"Photo UUID"
+//	@Success		200			{object}	response.Response
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"remove from collection is not permitted"
+//	@Failure		404			{object}	response.Response	"collection not found / photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/collection/{collection_uuid}/photo/{photo_uuid} [delete]
 func RemovePhotoFromCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

@@ -1,3 +1,12 @@
+// @title Photo Viewer API
+// @version dev
+// @BasePath /api/v1
+// @schemes     http
+//
+// @securityDefinitions.apiKey BearerAuth
+// @in           header
+// @name         Authorization
+// @description  Format: "Bearer <access_token>"
 package main
 
 import (
@@ -5,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	_ "photo-viewer-server/docs"
 	"photo-viewer-server/internal/config"
 	"photo-viewer-server/internal/http-server/handlers/auth"
 	"photo-viewer-server/internal/http-server/handlers/url/healthcheck"
@@ -29,11 +39,13 @@ import (
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	swagger "github.com/swaggo/http-swagger"
 )
 
 func main() {
@@ -151,6 +163,19 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
+
+	if isDevEnv {
+		swagUrlBuilder := strings.Builder{}
+		swagUrlBuilder.WriteString("http://")
+		swagUrlBuilder.WriteString(cfg.Host)
+		swagUrlBuilder.WriteByte(':')
+		swagUrlBuilder.WriteString(strconv.Itoa(cfg.Port))
+		swagUrlBuilder.WriteString("/swagger/doc.json")
+
+    router.Get("/swagger/*", swagger.Handler(
+        swagger.URL(swagUrlBuilder.String()),
+    ))
+	}
 
 	router.Route("/api/v1", func(apiv1Router chi.Router) {
 		apiv1Router.Group(func(r chi.Router) {

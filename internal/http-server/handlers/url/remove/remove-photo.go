@@ -15,6 +15,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// RemovePhoto deletes the owner's photo and its files.
+//
+//	@Summary		Delete a photo
+//	@Tags				photos
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Success		200			{object}	response.Response
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"invalid authorization (not the owner)"
+//	@Failure		404			{object}	response.Response	"not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photo/{photo_uuid} [delete]
 func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

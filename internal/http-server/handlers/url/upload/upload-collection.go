@@ -20,6 +20,20 @@ type CollecionCreateResponse struct {
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
 }
 
+// UploadCollection creates a collection, optionally prefilling it with photos.
+//
+//	@Summary		Create a collection
+//	@Tags				collections
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []"
+//	@Success		201			{object}	upload.CollecionCreateResponse
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"quota is not enough / collection already exists"
+//	@Failure		500			{object}	response.Response	"internal error (incl. unknown photo in photo_uuids)"
+//	@Router			/collections [post]
 func UploadCollection(lg *slog.Logger, validator *vlpkg.Validate, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

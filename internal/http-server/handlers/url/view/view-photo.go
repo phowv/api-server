@@ -15,6 +15,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// ViewPhoto returns the photo file by UUID and signed access key.
+//
+//	@Summary		Download photo file
+//	@Tags				photos
+//	@Produce		image/jpeg
+//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Param			access_key	query		string	true	"Signed access key (from list/info responses)"
+//	@Param			photo_size	query		string	false	"Size"	Enums(raw, medium, small)
+//	@Success		200			{file}		image		"Image bytes, Content-Type: image/jpeg"
+//	@Failure		400			{object}	response.Response	"empty photo id / empty access key / invalid photo size / invalid request"
+//	@Failure		403			{object}	response.Response	"photo is not permitted"
+//	@Failure		404			{object}	response.Response	"photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photo/{photo_uuid}/file [get]
 func ViewPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

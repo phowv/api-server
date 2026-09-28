@@ -21,6 +21,19 @@ type TagCreateResponse struct {
 	TagUuid uuid.UUID `json:"tag_uuid"`
 }
 
+// UploadTag creates a tag with a unique name.
+//
+//	@Summary		Create a tag
+//	@Tags			  tags
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body		body service.SaveTagInput true	"tag_name (2-50, unique), tag_description (≤200)"
+//	@Success		201			{object}	upload.TagCreateResponse
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / tag with this name already exists"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/tags [post]
 func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -28,10 +41,8 @@ func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.T
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		jsonMetadata := r.FormValue("metadata")
-
 		var tagInfo service.SaveTagInput
-		if err := json.Unmarshal([]byte(jsonMetadata), &tagInfo); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&tagInfo); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)

@@ -2,161 +2,47 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/logger/sl"
-	"photo-viewer-server/internal/lib/random"
 	"photo-viewer-server/internal/service"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-type userInfoResponse struct {
+type UserInfoResponse struct {
 	Login string `json:"user_login"`
 	Email string `json:"user_email"`
 	Role  string `json:"user_role"`
 }
 
-type accessTokenResponse struct {
+type AccessTokenResponse struct {
 	response.Response
 	AccessToken string `json:"access_token"`
 }
 
-func RegisterUser(lg *slog.Logger, validator *vlpkg.Validate, userService *service.UserService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.RegisterUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userData service.UserData
-		if err := json.NewDecoder(r.Body).Decode(&userData); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userData.Login), slog.String("email", userData.Email))
-
-		if err := validator.Struct(userData); err != nil {
-			validateErr, ok := err.(vlpkg.ValidationErrors)
-			if !ok {
-				log.Error("unknown validation error", sl.Err(err))
-
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("validation error"))
-				return
-			}
-
-			log.Error("error validate request metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.ValidationErrors(validateErr))
-			return
-		}
-
-		_, err := userService.CreateUser(r.Context(), userData)
-
-		if err != nil {
-			log.Error("error create user", sl.Err(err))
-
-			if errors.Is(err, service.ErrUserExists) {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("error user already exists"))
-				return
-
-			} else if errors.Is(err, service.ErrUserPasswordTooShort) {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("error user password too short, must be longer than 8 symbols"))
-				return
-			}
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("error register new user"))
-			return
-		}
-
-		render.Status(r, http.StatusCreated)
-		render.JSON(w, r, response.OK())
-	}
+type createJwtTokensResult struct {
+	tokenString   string
+	refreshCookie *http.Cookie
 }
 
-func LoginUser(lg *slog.Logger, validator *vlpkg.Validate, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, authConfig *auth.AuthConfig) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.LoginUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userCredentials service.UserAuthCredentials
-		if err := json.NewDecoder(r.Body).Decode(&userCredentials); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userCredentials.Login))
-
-		if err := validator.Struct(userCredentials); err != nil {
-			validateErr, ok := err.(vlpkg.ValidationErrors)
-			if !ok {
-				log.Error("unknown validation error", sl.Err(err))
-
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("validation error"))
-				return
-			}
-
-			log.Error("error validate request metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.ValidationErrors(validateErr))
-			return
-		}
-
-		user, err := userService.AuthenticateUser(r.Context(), userCredentials)
-
-		if err != nil {
-			log.Error("failed to authenticate user", sl.Err(err))
-
-			duration, err := random.CryptoRandInt64(100, 1500)
-			if err != nil {
-				duration = 750
-			}
-			time.Sleep(time.Duration(duration) * time.Millisecond)
-
-			render.Status(r, http.StatusForbidden)
-			render.JSON(w, r, response.Error("invalid credentials"))
-			return
-		}
-
-		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
-		if err != nil {
-			log.Error("failed to create jwt token pair", sl.Err(err))
-
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("failed to create tokens"))
-			return
-		}
-
-		sendJwtTokens(w, r, tokens)
-	}
-}
-
+// GetMe returns the authenticated user's profile.
+//
+//	@Summary		Get current user
+//	@Tags			  auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200			{object}	auth.UserInfoResponse	"user_login, user_email, user_role"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		500			{object}	response.Response	"failed to get user info (incl. inactive user)"
+//	@Router			/auth/me [get]
 func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -186,174 +72,12 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 		}
 
 		render.Status(r, http.StatusOK)
-		render.JSON(w, r, userInfoResponse{
+		render.JSON(w, r, UserInfoResponse{
 			Login: user.Login,
 			Email: user.Email,
 			Role:  user.Role,
 		})
 	}
-}
-
-func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, authConfig *auth.AuthConfig) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.RefreshUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		cookie, err := r.Cookie("refresh_token")
-		if err != nil {
-			log.Debug("missing refresh token cookie")
-
-			render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("missing authentication"))
-			return
-		}
-
-		log.Info("parsed cookie refresh token")
-
-		refreshTokenString := cookie.Value
-		refreshClaims := &auth.RefreshClaims{}
-
-		refreshToken, err := jwt.ParseWithClaims(refreshTokenString, refreshClaims, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected singing method: %v", token.Header["alg"])
-			}
-
-			return []byte(jwtRefreshSecret), nil
-		}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Name}))
-
-		if err != nil || !refreshToken.Valid {
-			log.Debug("invalid refresh token")
-
-			render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid token"))
-			return
-		}
-
-		SessionUuid := refreshClaims.SessionUuid
-		userUuid := refreshClaims.UserUuid
-
-		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
-
-		user, err := userService.RefreshSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
-		if err != nil {
-			log.Error("failed to authenticate session", sl.Err(err))
-
-			render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid token"))
-			return
-		}
-		log.Debug("success authenticate user session")
-
-		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, authConfig)
-		if err != nil {
-			log.Error("failed to create jwt token pair", sl.Err(err))
-
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("failed to create tokens"))
-			return
-		}
-
-		sendJwtTokens(w, r, tokens)
-	}
-}
-
-func VerifyUser(lg *slog.Logger, validator *vlpkg.Validate, userService *service.UserService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.VerifyUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userVerifyCredentials service.UserVerifyCredentials
-		if err := json.NewDecoder(r.Body).Decode(&userVerifyCredentials); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userVerifyCredentials.Login))
-
-		if err := validator.Struct(userVerifyCredentials); err != nil {
-			validateErr, ok := err.(vlpkg.ValidationErrors)
-			if !ok {
-				log.Error("unknown validation error", sl.Err(err))
-
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("validation error"))
-				return
-			}
-
-			log.Error("error validate request metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.ValidationErrors(validateErr))
-			return
-		}
-
-		err := userService.VerifyUser(r.Context(), userVerifyCredentials)
-		if err != nil {
-			log.Error("failed to verify user", sl.Err(err))
-
-			duration, err := random.CryptoRandInt64(100, 1500)
-			if err != nil {
-				duration = 750
-			}
-			time.Sleep(time.Duration(duration) * time.Millisecond)
-
-			render.Status(r, http.StatusForbidden)
-			render.JSON(w, r, response.Error("invalid code"))
-			return
-		}
-
-		render.Status(r, http.StatusOK)
-		render.JSON(w, r, response.OK())
-	}
-}
-
-func LogoutUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.LogoutUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		sessionUuid, ok := r.Context().Value("session_uuid").(uuid.UUID)
-		if !ok {
-			log.Error("failed to get session_uuid from context")
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid session_uuid"))
-			return
-		}
-
-		err := userService.RevokeSession(r.Context(), sessionUuid)
-
-		if err != nil {
-			log.Error("failed to get revoke session", sl.Err(err))
-
-			if errors.Is(err, service.ErrSessionNotFound) {
-				render.Status(r, http.StatusNotFound)
-				render.JSON(w, r, response.Error("session not found"))
-				return
-			}
-
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("internal error"))
-			return
-		}
-
-		render.Status(r, http.StatusOK)
-		render.JSON(w, r, response.OK())
-	}
-}
-
-type createJwtTokensResult struct {
-	tokenString   string
-	refreshCookie *http.Cookie
 }
 
 func createJwtTokens(
@@ -421,7 +145,7 @@ func createJwtTokens(
 func sendJwtTokens(w http.ResponseWriter, r *http.Request, tokens *createJwtTokensResult) {
 	http.SetCookie(w, tokens.refreshCookie)
 
-	render.JSON(w, r, accessTokenResponse{
+	render.JSON(w, r, AccessTokenResponse{
 		Response:    response.OK(),
 		AccessToken: tokens.tokenString,
 	})

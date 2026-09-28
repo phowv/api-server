@@ -17,6 +17,22 @@ import (
 	"github.com/google/uuid"
 )
 
+// UpdateUser patches a user's role and quotas (admin only). All fields are optional.
+//
+//	@Summary		Update user (role / quotas)
+//	@Tags				users
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			user_uuid	path		string	true	"User UUID"
+//	@Param			body		body	service.PatchUserRequest	true	"user_role (user|moderator), photos_quota (≥0), collections_quota (≥0)"
+//	@Success		200			{object}	response.Response
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"access denied (admin role required)"
+//	@Failure		404			{object}	response.Response	"user not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/users/{user_uuid} [patch]
 func UpdateUser(lg *slog.Logger, adminService *service.AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -24,10 +40,8 @@ func UpdateUser(lg *slog.Logger, adminService *service.AdminService) http.Handle
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		jsonMetadata := r.FormValue("metadata")
-
 		var metadata service.PatchUserRequest
-		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)

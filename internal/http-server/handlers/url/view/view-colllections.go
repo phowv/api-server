@@ -12,6 +12,16 @@ import (
 	"github.com/go-chi/render"
 )
 
+// ViewCollections lists collections visible to the caller (public, own or permitted).
+//
+//	@Summary		List collections
+//	@Tags				collections
+//	@Produce		json
+//	@Param			owner_login	query		string	false	"Owner login; without the param — all visible collections"
+//	@Success		200			{object}	[]service.SimpleCollectionInfo
+//	@Failure		404			{object}	response.Response	"owner not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/collections [get]
 func ViewCollections(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

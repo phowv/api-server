@@ -29,6 +29,17 @@ type UsersInfoResponse struct {
 	Users []UserInfo `json:"users"`
 }
 
+// ViewUsers returns the full user list (admin only).
+//
+//	@Summary		List users
+//	@Tags				users
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200			{object}	view.UsersInfoResponse
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"access denied (admin role required)"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/users [get]
 func ViewUsers(lg *slog.Logger, adminService *service.AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

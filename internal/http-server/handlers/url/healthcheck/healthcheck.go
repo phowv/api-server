@@ -11,11 +11,19 @@ import (
 	"github.com/go-chi/render"
 )
 
-type healthcheckResponse struct {
+type HealthcheckResponse struct {
 	response.Response
 	Healthy bool `json:"healthy"`
 }
 
+// Healthcheck reports liveness of the server and its dependencies.
+//
+//	@Summary		Healthcheck
+//	@Tags				health
+//	@Produce		json
+//	@Success		200	{object}	healthcheck.HealthcheckResponse	"healthy: true"
+//	@Failure		500	{object}	response.Response	"some dependency is unreachable"
+//	@Router			/health [get]
 func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -33,7 +41,7 @@ func Healthcheck(lg *slog.Logger, healthCheckService *service.HealthcheckService
 		}
 
 		render.Status(r, http.StatusOK)
-		render.JSON(w, r, healthcheckResponse{
+		render.JSON(w, r, HealthcheckResponse{
 			Response: response.OK(),
 			Healthy:  true,
 		})

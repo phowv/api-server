@@ -26,6 +26,22 @@ type Response struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
+// UploadPhoto stores a photo with metadata and tags; generates medium/small renditions.
+//
+//	@Summary		Upload a photo
+//	@Description	Total body size limit is 10 MB.
+//	@Tags				photos
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public), tag_uuids []"
+//	@Param			photo		formData	file	true	"Photo file"
+//	@Success		201			{object}	upload.Response
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid photo file / file too big / tag does not exist"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"quota is not enough"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photos [post]
 func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

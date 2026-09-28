@@ -23,6 +23,21 @@ type Response struct {
 	PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
+// UpdatePhoto patches photo metadata (title, description, access level, dates).
+//
+//	@Summary		Update photo metadata
+//	@Tags				photos
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)"
+//	@Success		200			{object}	update.Response
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		404			{object}	response.Response	"photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photo/{photo_uuid} [patch]
 func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

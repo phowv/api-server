@@ -13,6 +13,16 @@ import (
 	"github.com/google/uuid"
 )
 
+// ViewTags returns tags, optionally filtered by photo.
+//
+//	@Summary		List tags
+//	@Tags				tags
+//	@Produce		json
+//	@Param			photo_uuid	query		string	false	"Filter tags by photo UUID"
+//	@Success		200			{object}	[]service.TagInfo
+//	@Failure		400			{object}	response.Response	"invalid photo uuid / photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/tags [get]
 func ViewTags(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
