@@ -60,6 +60,13 @@ definitions:
         example: Ok
         type: string
     type: object
+  service.AccessLinkRequest:
+    properties:
+      expires_duration:
+        type: integer
+    required:
+    - expires_duration
+    type: object
   service.CollectionInfo:
     properties:
       access_level:
@@ -692,6 +699,93 @@ paths:
       summary: Add photo to collection
       tags:
       - collections
+  /collection/{collection_uuid}/secret:
+    delete:
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid authorization (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a collection access secret
+      tags:
+      - collections
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      - description: expires_duration (ns duration)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.AccessLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/update.Response'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access link already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Grant collection access
+      tags:
+      - collections
   /collections:
     get:
       parameters:
@@ -943,6 +1037,93 @@ paths:
       summary: Download photo file
       tags:
       - photos
+  /photo/{photo_uuid}/secret:
+    delete:
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid authorization (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a photo access secret
+      tags:
+      - photos
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      - description: expires_duration (ns duration)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.AccessLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/update.Response'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access link already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Grant photo access
+      tags:
+      - photos
   /photos:
     get:
       parameters:
@@ -1077,7 +1258,7 @@ paths:
       summary: Create a tag
       tags:
       - tags
-  /tags/{photo_uuid}:
+  /tags/{tag_uuid}:
     delete:
       parameters:
       - description: Tag UUID

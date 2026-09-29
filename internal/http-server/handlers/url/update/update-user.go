@@ -90,7 +90,7 @@ func UpdateUser(lg *slog.Logger, adminService *service.AdminService) http.Handle
 				render.JSON(w, r, response.Error("user not found"))
 			case errors.Is(err, service.ErrOperationIsNotPermitted):
 				render.Status(r, http.StatusForbidden)
-				render.JSON(w, r, response.Error("operation is not permitted"))	
+				render.JSON(w, r, response.Error("operation is not permitted"))
 			default:
 				render.Status(r, http.StatusInternalServerError)
 				render.JSON(w, r, response.Error("internal error"))

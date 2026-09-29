@@ -5,6 +5,7 @@ import (
 	"errors"
 	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/storage/entity"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -44,6 +45,9 @@ var (
 	ErrForbidden       = errors.New("forbidden")
 
 	ErrOperationIsNotPermitted = errors.New("operation is not permitted")
+
+	ErrAccessLinkNotFound      = errors.New("not found")
+	ErrAccessLinkAlreadyExists = errors.New("access link already exists")
 )
 
 type Healthchecker interface {
@@ -113,13 +117,17 @@ type AccessRepo interface {
 	IsUserCanAccessPhotoByUuid(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
 	GetValidAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) (*entity.CollectionAccessLink, error)
 	IsUserCanAccessCollectionByUuid(ctx context.Context, collectionUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
+	SavePhotoAccessLink(ctx context.Context, accessLink *entity.PhotoAccessLink) error
+	SaveCollectionAccessLink(ctx context.Context, accessLink *entity.CollectionAccessLink) error
+	DeleteAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) error
+	DeleteAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) error
 }
 
 type ImageProcessor interface {
 	ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
 }
 
-type PhotoKeySigner interface {
+type PhotoFileAccessSigner interface {
 	Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
 	Validate(token string, expectedPhotoUuid uuid.UUID) (*signer.FileKeyPayload, error)
 }
@@ -134,4 +142,8 @@ type VerificationCodeRepo interface {
 	SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error
 	DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error
 	GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
+}
+
+type AccessLinkRequest struct {
+	ExpiresDuration time.Duration `json:"expires_duration" swaggertype:"integer" validate:"required"`
 }

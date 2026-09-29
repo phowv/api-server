@@ -24,7 +24,7 @@ type AddPhotoToCollectionResponse struct {
 }
 
 type AddPhotoToCollectionRequest struct {
-	PhotoUuid      uuid.UUID `json:"photo_uuid" validate:"required"`
+	PhotoUuid uuid.UUID `json:"photo_uuid" validate:"required"`
 }
 
 // AddPhotoToCollection adds a photo to a collection.
@@ -70,7 +70,7 @@ func AddPhotoToCollection(lg *slog.Logger, collectionService *service.Collection
 
 		var metadata AddPhotoToCollectionRequest
 
-	  if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)

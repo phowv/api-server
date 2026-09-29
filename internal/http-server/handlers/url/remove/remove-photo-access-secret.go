@@ -14,9 +14,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// RemovePhoto deletes the owner's photo and its files.
+// Remove photo access secret deletes the owner's photo access secret.
 //
-//	@Summary		Delete a photo
+//	@Summary		Delete a photo access secret
 //	@Tags				photos
 //	@Produce		json
 //	@Security		BearerAuth
@@ -27,11 +27,11 @@ import (
 //	@Failure		403			{object}	response.Response	"invalid authorization (not the owner)"
 //	@Failure		404			{object}	response.Response	"not found"
 //	@Failure		500			{object}	response.Response	"internal error"
-//	@Router			/photo/{photo_uuid} [delete]
-func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+//	@Router			/photo/{photo_uuid}/secret [delete]
+func RemovePhotoAccessSecret(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
-			slog.String("op", "handlers.remove.RemovePhoto"),
+			slog.String("op", "handlers.remove.RemovePhotoAccessSecret"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
@@ -62,18 +62,24 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		err = photoService.DeletePhoto(r.Context(), photoUuid, userUuid)
+		err = photoService.DeletePhotoAccessSecret(r.Context(), photoUuid, userUuid)
+
 		if err != nil {
-			log.Error("error remove photo", sl.Err(err))
+			log.Info("failed to generate photo access link", slog.Any("photo_uuid", photoUuid), sl.Err(err))
 
 			if errors.Is(err, service.ErrPhotoNotFound) {
 				render.Status(r, http.StatusNotFound)
-				render.JSON(w, r, response.Error("not found"))
+				render.JSON(w, r, response.Error("photo not found"))
 				return
 
-			} else if errors.Is(err, service.ErrUserInvalidAuthorization) {
+			} else if errors.Is(err, service.ErrAccessLinkNotFound) {
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, response.Error("access link not found"))
+				return
+
+			} else if errors.Is(err, service.ErrForbidden) {
 				render.Status(r, http.StatusForbidden)
-				render.JSON(w, r, response.Error("invalid authorization"))
+				render.JSON(w, r, response.Error("photo access denied"))
 				return
 			}
 
@@ -82,6 +88,9 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
+		log.Info("success remove photo access link", slog.Any("photo_uuid", photoUuid))
+
+		render.Status(r, http.StatusOK)
 		render.JSON(w, r, response.OK())
 	}
 }

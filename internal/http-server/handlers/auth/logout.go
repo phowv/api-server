@@ -61,4 +61,3 @@ func LogoutUser(lg *slog.Logger, userService *service.UserService) http.HandlerF
 		render.JSON(w, r, response.OK())
 	}
 }
-

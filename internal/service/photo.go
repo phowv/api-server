@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -70,6 +72,11 @@ type imageWithType struct {
 	contentType string
 }
 
+type PhotoAccessLinkSecret struct {
+	PhotoUuid    uuid.UUID `json:"photo_uuid"`
+	AccessSecret string    `json:"access_secret"`
+}
+
 type PhotoService struct {
 	log            *slog.Logger
 	photoRepo      PhotoRepo
@@ -79,7 +86,7 @@ type PhotoService struct {
 	imageProcessor ImageProcessor
 	txManager      storage.TxManager
 	accessRepo     AccessRepo
-	keySigner      PhotoKeySigner
+	keySigner      PhotoFileAccessSigner
 }
 
 func NewPhotoService(
@@ -91,7 +98,7 @@ func NewPhotoService(
 	imageProcessor ImageProcessor,
 	txManager storage.TxManager,
 	accessReoo AccessRepo,
-	keySigner PhotoKeySigner,
+	keySigner PhotoFileAccessSigner,
 ) *PhotoService {
 	return &PhotoService{
 		log:            log,
@@ -473,7 +480,7 @@ func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, own
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
 				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
-				return err
+				return ErrPhotoNotFound
 			}
 
 			log.Error("error get photo", sl.Err(err))
@@ -574,6 +581,117 @@ func (s *PhotoService) UpdatePhotoInfo(ctx context.Context, photoUuid uuid.UUID,
 	return nil
 }
 
+func (s *PhotoService) GeneratePhotoAccessSecret(ctx context.Context, request *AccessLinkRequest, photoUuid, userUuid uuid.UUID) (*PhotoAccessLinkSecret, error) {
+	log := s.log.With(
+		slog.String("op", "service.GeneratePhotoAccessSecret"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+
+	var res PhotoAccessLinkSecret
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		photoEntity, err := s.photoRepo.GetPhoto(txCtx, photoUuid)
+		if err != nil {
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
+				return ErrPhotoNotFound
+			}
+
+			log.Error("error get photo", sl.Err(err))
+			return fmt.Errorf("error get photo: %w", err)
+		}
+
+		if photoEntity.OwnerUuid != userUuid {
+			return ErrForbidden
+		}
+
+		token, err := newAccessSecret()
+		if err != nil {
+			return fmt.Errorf("failed to generate access token: %w", err)
+		}
+
+		hashToken, err := hashToken(token)
+		if err != nil {
+			return fmt.Errorf("failed to hash token")
+		}
+
+		accessLink := &entity.PhotoAccessLink{
+			PhotoUuid: photoUuid,
+			HashCode:  hashToken,
+			IsRevoked: false,
+			CreatedAt: time.Now(),
+			ExpiresAt: time.Now().Add(request.ExpiresDuration),
+		}
+
+		err = s.accessRepo.SavePhotoAccessLink(txCtx, accessLink)
+		if err != nil {
+			if errors.Is(err, storage.ErrAccessLinkAlreadyExists) {
+				return ErrAccessLinkAlreadyExists
+			}
+
+			return fmt.Errorf("failed to save access link: %w", err)
+		}
+
+		res.AccessSecret = token
+		res.PhotoUuid = photoUuid
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("failed to transact access link", sl.Err(err))
+		if errors.Is(err, ErrPhotoNotFound) || errors.Is(err, ErrAccessLinkAlreadyExists) || errors.Is(err, ErrForbidden) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("failed to transact access link")
+	}
+
+	return &res, nil
+}
+
+func (s *PhotoService) DeletePhotoAccessSecret(ctx context.Context, photoUuid, userUuid uuid.UUID) error {
+	log := s.log.With(
+		slog.String("op", "service.DeletePhotoAccessSecret"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
+	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		photoEntity, err := s.photoRepo.GetPhoto(txCtx, photoUuid)
+		if err != nil {
+			if errors.Is(err, storage.ErrPhotoNotFound) {
+				log.Error("photo not found", slog.Any("photo_uuid", photoUuid))
+				return ErrPhotoNotFound
+			}
+
+			log.Error("error get photo", sl.Err(err))
+			return fmt.Errorf("error get photo: %w", err)
+		}
+
+		if photoEntity.OwnerUuid != userUuid {
+			return ErrForbidden
+		}
+		err = s.accessRepo.DeleteAccessLinkByPhotoUuid(txCtx, photoUuid)
+
+		if err != nil {
+			if errors.Is(err, storage.ErrAccessLinkNotFound) {
+				return ErrAccessLinkNotFound
+			}
+
+			return fmt.Errorf("failed to delete photo access link", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Error("failed to delete access link", sl.Err(err))
+		if errors.Is(err, ErrAccessLinkNotFound) || errors.Is(err, ErrPhotoNotFound) || errors.Is(err, ErrForbidden) {
+			return err
+		}
+
+		return fmt.Errorf("failed to delete access link")
+	}
+
+	return nil
+}
+
 func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (bool, error) {
 	log := s.log.With(
 		slog.String("op", "service.isPhotoPermit"),
@@ -630,13 +748,16 @@ func (s *PhotoService) isPhotoPermit(ctx context.Context, photo *entity.Photo) (
 			log.Error("failed to get access link", sl.Err(err))
 			return false, fmt.Errorf("failed to get access link: %w", err)
 		}
-		if comparePasswords(accessKey, accessLink.HashCode) {
+		if compareTokens(accessKey, accessLink.HashCode) {
+			if accessLink.IsRevoked {
+				return false, nil
+			}
+
 			return true, nil
 		}
 	}
 
 	log.Error("photo access denied")
-
 	return false, nil
 }
 
@@ -650,4 +771,13 @@ func StringToStoredPhotoType(value string) (StoredPhotoType, error) {
 		return PhotoSizeSmall, nil
 	}
 	return "", ErrInvalidPhotoSize
+}
+
+func newAccessSecret() (string, error) {
+	b := make([]byte, 64)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }

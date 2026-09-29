@@ -1,6 +1,6 @@
 package auth
 
-import(
+import (
 	"encoding/json"
 	"log/slog"
 	"net/http"

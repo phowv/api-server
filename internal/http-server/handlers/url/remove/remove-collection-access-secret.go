@@ -14,39 +14,39 @@ import (
 	"github.com/google/uuid"
 )
 
-// RemovePhoto deletes the owner's photo and its files.
+// Remove collection access secret deletes the owner's collection access secret.
 //
-//	@Summary		Delete a photo
-//	@Tags				photos
+//	@Summary		Delete a collection access secret
+//	@Tags				collections
 //	@Produce		json
 //	@Security		BearerAuth
-//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Param			collection_uuid	path		string	true	"Collection UUID"
 //	@Success		200			{object}	response.Response
 //	@Failure		400			{object}	response.Response	"invalid request"
 //	@Failure		401			{object}	response.Response	"token is empty / invalid token"
 //	@Failure		403			{object}	response.Response	"invalid authorization (not the owner)"
 //	@Failure		404			{object}	response.Response	"not found"
 //	@Failure		500			{object}	response.Response	"internal error"
-//	@Router			/photo/{photo_uuid} [delete]
-func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+//	@Router			/collection/{collection_uuid}/secret [delete]
+func RemoveCollectionAccessSecret(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
-			slog.String("op", "handlers.remove.RemovePhoto"),
+			slog.String("op", "handlers.remove.RemoveCollectionAccessSecret"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		photoIdStr := chi.URLParam(r, "photo_uuid")
-		if photoIdStr == "" {
-			log.Info("photo id param is empty")
+		collectionUuidStr := chi.URLParam(r, "collection_uuid")
+		if collectionUuidStr == "" {
+			log.Info("collection uuid param is empty")
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("photo id is empty"))
 			return
 		}
 
-		photoUuid, err := uuid.Parse(photoIdStr)
+		collectionUuid, err := uuid.Parse(collectionUuidStr)
 		if err != nil {
-			log.Error("failed to convert photo id to int", slog.String("photo_id_str", photoIdStr))
+			log.Error("failed to convert photo id to int", slog.String("collection_uuid_str", collectionUuidStr))
 
 			render.Status(r, http.StatusBadRequest)
 			render.JSON(w, r, response.Error("invalid request"))
@@ -62,18 +62,24 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		err = photoService.DeletePhoto(r.Context(), photoUuid, userUuid)
-		if err != nil {
-			log.Error("error remove photo", sl.Err(err))
+		err = collectionService.DeleteCollectionAccessSecret(r.Context(), collectionUuid, userUuid)
 
-			if errors.Is(err, service.ErrPhotoNotFound) {
+		if err != nil {
+			log.Info("failed to generate collection access link", slog.Any("collection_uuid", collectionUuid), sl.Err(err))
+
+			if errors.Is(err, service.ErrCollectionNotFound) {
 				render.Status(r, http.StatusNotFound)
-				render.JSON(w, r, response.Error("not found"))
+				render.JSON(w, r, response.Error("collection not found"))
 				return
 
-			} else if errors.Is(err, service.ErrUserInvalidAuthorization) {
+			} else if errors.Is(err, service.ErrAccessLinkNotFound) {
+				render.Status(r, http.StatusNotFound)
+				render.JSON(w, r, response.Error("access link not found"))
+				return
+
+			} else if errors.Is(err, service.ErrForbidden) {
 				render.Status(r, http.StatusForbidden)
-				render.JSON(w, r, response.Error("invalid authorization"))
+				render.JSON(w, r, response.Error("collection access denied"))
 				return
 			}
 
@@ -82,6 +88,9 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
+		log.Info("success remove photo access link", slog.Any("collection_uuid", collectionUuid))
+
+		render.Status(r, http.StatusOK)
 		render.JSON(w, r, response.OK())
 	}
 }

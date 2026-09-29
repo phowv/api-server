@@ -17,6 +17,7 @@ import (
 	_ "photo-viewer-server/docs"
 	"photo-viewer-server/internal/config"
 	"photo-viewer-server/internal/http-server/handlers/auth"
+	"photo-viewer-server/internal/http-server/handlers/url/create"
 	"photo-viewer-server/internal/http-server/handlers/url/healthcheck"
 	"photo-viewer-server/internal/http-server/handlers/url/remove"
 	"photo-viewer-server/internal/http-server/handlers/url/update"
@@ -172,9 +173,9 @@ func main() {
 		swagUrlBuilder.WriteString(strconv.Itoa(cfg.Port))
 		swagUrlBuilder.WriteString("/swagger/doc.json")
 
-    router.Get("/swagger/*", swagger.Handler(
-        swagger.URL(swagUrlBuilder.String()),
-    ))
+		router.Get("/swagger/*", swagger.Handler(
+			swagger.URL(swagUrlBuilder.String()),
+		))
 	}
 
 	router.Route("/api/v1", func(apiv1Router chi.Router) {
@@ -215,12 +216,18 @@ func main() {
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
 
+			r.Post("/photo/{photo_uuid}/secret", create.CreatePhotoAccessSecret(log, photoService))
+			r.Delete("/photo/{photo_uuid}/secret", remove.RemovePhotoAccessSecret(log, photoService))
+
 			r.Post("/tags", upload.UploadTag(log, validator, tagService))
 
 			r.Post("/collections", upload.UploadCollection(log, validator, collectionService))
 			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}", remove.RemoveCollection(log, collectionService))
+
+			r.Post("/collection/{collection_uuid}/secret", create.CreateCollectionAccessSecret(log, collectionService))
+			r.Delete("/collection/{collection_uuid}/secret", remove.RemoveCollectionAccessSecret(log, collectionService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {

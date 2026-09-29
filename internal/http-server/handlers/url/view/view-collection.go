@@ -43,7 +43,7 @@ func ViewCollection(lg *slog.Logger, collectionService *service.CollectionServic
 		}
 
 		accessKey := r.URL.Query().Get("collection_access_secret")
-		r.WithContext(context.WithValue(r.Context(), "collection_access_secret", accessKey))
+		r = r.WithContext(context.WithValue(r.Context(), "collection_access_secret", accessKey))
 
 		collectionUuid, err := uuid.Parse(collectionUuidStr)
 		if err != nil {

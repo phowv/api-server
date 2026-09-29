@@ -45,7 +45,7 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 		}
 
 		accessKey := r.URL.Query().Get("photo_access_secret")
-		r.WithContext(context.WithValue(r.Context(), "photo_access_secret", accessKey))
+		r = r.WithContext(context.WithValue(r.Context(), "photo_access_secret", accessKey))
 
 		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {

@@ -26,7 +26,7 @@ import (
 //	@Failure		401			{object}	response.Response	"token is empty / invalid token"
 //	@Failure		404			{object}	response.Response	"not found"
 //	@Failure		500			{object}	response.Response	"internal error"
-//	@Router			/tags/{photo_uuid} [delete]
+//	@Router			/tags/{tag_uuid} [delete]
 func RemoveTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -70,4 +70,3 @@ func RemoveTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 		render.JSON(w, r, response.OK())
 	}
 }
-
