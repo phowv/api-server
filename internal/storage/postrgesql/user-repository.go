@@ -29,6 +29,18 @@ func (s *UserRepository) CreateUser(ctx context.Context, user *entity.User) (uui
 	return user.UserUuid, nil
 }
 
+func (s *UserRepository) GetAllUsers(ctx context.Context) ([]entity.User, error) {
+	var users []entity.User
+
+	err := s.getDB(ctx).Find(&users).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("error get users: %w", err)
+	}
+
+	return users, nil
+}
+
 func (s *UserRepository) GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error) {
 	var user entity.User
 
@@ -45,11 +57,10 @@ func (s *UserRepository) GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*en
 	return &user, nil
 }
 
-
 func (s *UserRepository) GetUserByEmail(ctx context.Context, email string) (*entity.User, error) {
 	var user entity.User
 
-	err := s.getDB(ctx).Where("email = ?", email).First(&user).Error
+	err := s.getDB(ctx).Where("email = ?", email).Where("is_active = ?", true).First(&user).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -65,20 +76,20 @@ func (s *UserRepository) GetUserByEmail(ctx context.Context, email string) (*ent
 func (s *UserRepository) GetUserByLogin(ctx context.Context, login string) (*entity.User, error) {
 	var user entity.User
 
-	err := s.getDB(ctx).Where("login = ?", login).First(&user).Error
+	err := s.getDB(ctx).Where("login = ?", login).Where("is_active = ?", true).First(&user).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, storage.ErrUserNotFound
 		}
 
-		return nil, fmt.Errorf("error get user by email: %w", err)
+		return nil, fmt.Errorf("error get user by login: %w", err)
 	}
 
 	return &user, nil
 }
 
-func (s *UserRepository) DeleteUser(ctx context.Context, uuid uuid.UUID)error {
+func (s *UserRepository) DeleteUser(ctx context.Context, uuid uuid.UUID) error {
 	err := s.getDB(ctx).Delete(entity.User{}, uuid).Error
 
 	if err != nil {
@@ -88,8 +99,26 @@ func (s *UserRepository) DeleteUser(ctx context.Context, uuid uuid.UUID)error {
 	return nil
 }
 
+func (s *UserRepository) ActivateUser(ctx context.Context, uuid uuid.UUID) error {
+	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ?", uuid).UpdateColumn("is_active", true)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrUserNotFound
+		}
+
+		return fmt.Errorf("error activate user: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrUserNotFound
+	}
+
+	return nil
+}
+
 func (s *UserRepository) UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error {
-  res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ?", uuid).Updates(fields)
+	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ?", uuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -106,7 +135,7 @@ func (s *UserRepository) UpdateUser(ctx context.Context, uuid uuid.UUID, fields 
 	return nil
 }
 
-func (s* UserRepository) DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
+func (s *UserRepository) DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
 	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ? AND photos_quota > 0", uuid).UpdateColumn("photos_quota", gorm.Expr("photos_quota - 1"))
 
 	if res.Error != nil {
@@ -124,7 +153,7 @@ func (s* UserRepository) DecrementPhotosQuotaByUuid(ctx context.Context, uuid uu
 	return nil
 }
 
-func (s* UserRepository) DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
+func (s *UserRepository) DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error {
 	res := s.getDB(ctx).Model(&entity.User{}).Where("user_uuid = ? AND collections_quota > 0", uuid).UpdateColumn("collections_quota", gorm.Expr("collections_quota - 1"))
 
 	if res.Error != nil {

@@ -5,17 +5,17 @@ import (
 )
 
 type MailService struct {
-	smtpUser string
-	smtpHost string
-	smtpPassword string
+	smtpUser        string
+	smtpHost        string
+	smtpPassword    string
 	smtpFromAddress string
 }
 
 func NewMailService(config *config.Config) MailService {
 	return MailService{
-		smtpUser: config.SmtpUser,
-		smtpHost: config.SmtpHost,
-		smtpPassword: config.SmtpPassword,
+		smtpUser:        config.SmtpUser,
+		smtpHost:        config.SmtpHost,
+		smtpPassword:    config.SmtpPassword,
 		smtpFromAddress: config.SmtpFromAddress,
 	}
 }

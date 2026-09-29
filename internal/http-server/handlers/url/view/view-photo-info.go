@@ -15,6 +15,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// ViewPhotoInfo returns photo metadata by UUID.
+//
+//	@Summary		Photo info
+//	@Tags				photos
+//	@Produce		json
+//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Param			photo_access_secret	query	string	false	"Access link secret (for protected photos)"
+//	@Success		200			{object}	service.PhotoInfo
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		403			{object}	response.Response	"photo is not permitted"
+//	@Failure		404			{object}	response.Response	"photo not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photo/{photo_uuid} [get]
 func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -32,7 +45,7 @@ func ViewPhotoInfo(lg *slog.Logger, photoService *service.PhotoService) http.Han
 		}
 
 		accessKey := r.URL.Query().Get("photo_access_secret")
-		r.WithContext(context.WithValue(r.Context(), "photo_access_secret", accessKey))
+		r = r.WithContext(context.WithValue(r.Context(), "photo_access_secret", accessKey))
 
 		photoUuid, err := uuid.Parse(photoIdStr)
 		if err != nil {

@@ -12,17 +12,17 @@ import (
 )
 
 type FileKeyPayload struct {
-	PhotoUuid uuid.UUID		  `json:"p"`
-	OwnerUuid uuid.UUID		  `json:"o"`
-	PhotoRawFile string 	  `json:"pr"`
-	PhotoMediumFile string 	`json:"pm"`
-	PhotoSmallFile string 	`json:"ps"`
-	Expires int64					  `json:"exp"`
+	PhotoUuid       uuid.UUID `json:"p"`
+	OwnerUuid       uuid.UUID `json:"o"`
+	PhotoRawFile    string    `json:"pr"`
+	PhotoMediumFile string    `json:"pm"`
+	PhotoSmallFile  string    `json:"ps"`
+	Expires         int64     `json:"exp"`
 }
 
 type KeySigner struct {
 	secret []byte
-	ttl time.Duration
+	ttl    time.Duration
 }
 
 func NewKeySigner(secret string, ttl time.Duration) *KeySigner {
@@ -31,12 +31,12 @@ func NewKeySigner(secret string, ttl time.Duration) *KeySigner {
 
 func (ks *KeySigner) Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error) {
 	payload := &FileKeyPayload{
-		PhotoUuid: photoUuid,
-		OwnerUuid: ownerUuid,
-		PhotoRawFile: photoRaw,
+		PhotoUuid:       photoUuid,
+		OwnerUuid:       ownerUuid,
+		PhotoRawFile:    photoRaw,
 		PhotoMediumFile: photoMedium,
-		PhotoSmallFile: photoSmall,
-	  Expires: time.Now().Add(ks.ttl).Unix(),
+		PhotoSmallFile:  photoSmall,
+		Expires:         time.Now().Add(ks.ttl).Unix(),
 	}
 
 	data, err := json.Marshal(payload)

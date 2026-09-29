@@ -1,0 +1,1406 @@
+basePath: /api/v1
+definitions:
+  auth.AccessTokenResponse:
+    properties:
+      access_token:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  auth.UserInfoResponse:
+    properties:
+      user_email:
+        type: string
+      user_login:
+        type: string
+      user_role:
+        type: string
+    type: object
+  create.CollectionAccessSecretResponse:
+    properties:
+      access_secret:
+        type: string
+      collection_uuid:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  create.PhotoAccessSecretResponse:
+    properties:
+      access_secret:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      photo_uuid:
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  entity.AccessModifier:
+    enum:
+    - private
+    - protected
+    - public
+    type: string
+    x-enum-varnames:
+    - AccessModifierPrivate
+    - AccessModifierProtected
+    - AccessModifierPublic
+  entity.UserRole:
+    enum:
+    - user
+    - moderator
+    - admin
+    type: string
+    x-enum-varnames:
+    - UserDefaultRole
+    - UserModeratorRole
+    - UserAdminRole
+  healthcheck.HealthcheckResponse:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      healthy:
+        type: boolean
+      status:
+        example: Ok
+        type: string
+    type: object
+  response.Response:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  service.AccessLinkRequest:
+    properties:
+      expires_duration:
+        type: integer
+    required:
+    - expires_duration
+    type: object
+  service.CollectionInfo:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      collection_uuid:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      owner_login:
+        type: string
+      photos:
+        items:
+          $ref: '#/definitions/service.PhotoSmallInfo'
+        type: array
+      title:
+        maxLength: 50
+        type: string
+    required:
+    - access_level
+    type: object
+  service.PatchPhotoRequest:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      created_at:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      title:
+        maxLength: 50
+        type: string
+      took_at:
+        type: string
+    type: object
+  service.PatchUserRequest:
+    properties:
+      collections_quota:
+        minimum: 0
+        type: integer
+      photos_quota:
+        minimum: 0
+        type: integer
+      user_role:
+        allOf:
+        - $ref: '#/definitions/entity.UserRole'
+        enum:
+        - user
+        - moderator
+    type: object
+  service.PhotoInfo:
+    properties:
+      access_key:
+        type: string
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      created_at:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      owner_login:
+        type: string
+      photo_uuid:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/service.TagSmallInfo'
+        type: array
+      title:
+        maxLength: 50
+        type: string
+      took_at:
+        type: string
+    required:
+    - access_level
+    type: object
+  service.PhotoSmallInfo:
+    properties:
+      access_key:
+        type: string
+      photo_uuid:
+        type: string
+    type: object
+  service.SaveCollectionInputMetadata:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      description:
+        maxLength: 200
+        type: string
+      photo_uuids:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 50
+        type: string
+    required:
+    - access_level
+    type: object
+  service.SaveTagInput:
+    properties:
+      tag_description:
+        maxLength: 200
+        type: string
+      tag_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - tag_name
+    type: object
+  service.SimpleCollectionInfo:
+    properties:
+      access_level:
+        $ref: '#/definitions/entity.AccessModifier'
+      collection_uuid:
+        type: string
+      description:
+        maxLength: 200
+        type: string
+      owner_login:
+        type: string
+      title:
+        maxLength: 50
+        type: string
+    required:
+    - access_level
+    type: object
+  service.TagInfo:
+    properties:
+      tag_description:
+        type: string
+      tag_name:
+        type: string
+      tag_uuid:
+        type: string
+    type: object
+  service.TagSmallInfo:
+    properties:
+      tag_name:
+        type: string
+      tag_uuid:
+        type: string
+    type: object
+  service.UserAuthCredentials:
+    properties:
+      login:
+        maxLength: 50
+        minLength: 2
+        type: string
+      password:
+        type: string
+    required:
+    - login
+    type: object
+  service.UserData:
+    properties:
+      description:
+        type: string
+      email:
+        maxLength: 50
+        minLength: 2
+        type: string
+      login:
+        maxLength: 50
+        minLength: 2
+        type: string
+      password:
+        maxLength: 50
+        minLength: 8
+        type: string
+    required:
+    - email
+    - login
+    - password
+    type: object
+  service.UserVerifyCredentials:
+    properties:
+      code:
+        type: string
+      login:
+        maxLength: 50
+        minLength: 2
+        type: string
+    required:
+    - login
+    type: object
+  update.AddPhotoToCollectionRequest:
+    properties:
+      photo_uuid:
+        type: string
+    required:
+    - photo_uuid
+    type: object
+  update.AddPhotoToCollectionResponse:
+    properties:
+      collection_uuid:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      photo_uuid:
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  update.Response:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      photo_uuid:
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  upload.CollecionCreateResponse:
+    properties:
+      collection_uuid:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  upload.Response:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      photo_uuid:
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  upload.TagCreateResponse:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+      tag_uuid:
+        type: string
+    type: object
+  view.UserInfo:
+    properties:
+      collections_quota:
+        type: integer
+      created_at:
+        type: string
+      is_active:
+        type: boolean
+      photos_quota:
+        type: integer
+      role:
+        type: string
+      user_email:
+        type: string
+      user_login:
+        type: string
+      user_uuid:
+        type: string
+    type: object
+  view.UsersInfoResponse:
+    properties:
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+      users:
+        items:
+          $ref: '#/definitions/view.UserInfo'
+        type: array
+    type: object
+info:
+  contact: {}
+  title: Photo Viewer API
+  version: dev
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Returns an access token in the body and sets an HttpOnly refresh_token
+        cookie (Path=/api/v1/auth/refresh).
+      parameters:
+      - description: login (2-50), password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.UserAuthCredentials'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.AccessTokenResponse'
+        "400":
+          description: invalid metadata / validation
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid credentials / user not active / already authenticated
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: failed to create tokens
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Login
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Revokes the session bound to the current access token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: session not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Logout
+      tags:
+      - auth
+  /auth/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: user_login, user_email, user_role
+          schema:
+            $ref: '#/definitions/auth.UserInfoResponse'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: failed to get user info (incl. inactive user)
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      description: Requires the refresh_token cookie. Revokes the current session
+        and issues a new access token and cookie.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.AccessTokenResponse'
+        "401":
+          description: missing authentication / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: already authenticated
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: failed to create tokens
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Account is inactive until the verification code is confirmed via
+        /auth/verify.
+      parameters:
+      - description: login (2-50), email (2-50), password (8-50), description
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.UserData'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid metadata / validation / user already exists / password
+            too short
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: already authenticated
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Register a new user
+      tags:
+      - auth
+  /auth/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: login (2-50), code
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.UserVerifyCredentials'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid metadata / validation
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid code / already authenticated
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Verify user email
+      tags:
+      - auth
+  /collection/{collection_uuid}:
+    delete:
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: not permitted (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a collection
+      tags:
+      - collections
+    get:
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      - description: Access link secret (for protected collections)
+        in: query
+        name: collection_access_secret
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.CollectionInfo'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: collection is not permitted
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: collection not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Collection info
+      tags:
+      - collections
+  /collection/{collection_uuid}/photo/{photo_uuid}:
+    delete:
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: remove from collection is not permitted
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: collection not found / photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Remove photo from collection
+      tags:
+      - collections
+  /collection/{collection_uuid}/photos:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      - description: Photo UUID
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/update.AddPhotoToCollectionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/update.AddPhotoToCollectionResponse'
+        "400":
+          description: invalid request / photo in collection already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: add to collection is not permitted
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: collection not found / photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Add photo to collection
+      tags:
+      - collections
+  /collection/{collection_uuid}/secret:
+    delete:
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid authorization (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a collection access secret
+      tags:
+      - collections
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Collection UUID
+        in: path
+        name: collection_uuid
+        required: true
+        type: string
+      - description: expires_duration (ns duration)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.AccessLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/create.CollectionAccessSecretResponse'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access link already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Grant collection access
+      tags:
+      - collections
+  /collections:
+    get:
+      parameters:
+      - description: Owner login; without the param — all visible collections
+        in: query
+        name: owner_login
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.SimpleCollectionInfo'
+            type: array
+        "404":
+          description: owner not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: List collections
+      tags:
+      - collections
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: title (≤50), description (≤200), access_level (private|protected|public),
+          photo_uuids []
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.SaveCollectionInputMetadata'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/upload.CollecionCreateResponse'
+        "400":
+          description: invalid metadata / validation
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: quota is not enough / collection already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error (incl. unknown photo in photo_uuids)
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a collection
+      tags:
+      - collections
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'healthy: true'
+          schema:
+            $ref: '#/definitions/healthcheck.HealthcheckResponse'
+        "500":
+          description: some dependency is unreachable
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Healthcheck
+      tags:
+      - health
+  /photo/{photo_uuid}:
+    delete:
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid authorization (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a photo
+      tags:
+      - photos
+    get:
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      - description: Access link secret (for protected photos)
+        in: query
+        name: photo_access_secret
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/service.PhotoInfo'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: photo is not permitted
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Photo info
+      tags:
+      - photos
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      - description: title (≤50), description (≤200), created_at, took_at, access_level
+          (private|protected|public)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.PatchPhotoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/update.Response'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Update photo metadata
+      tags:
+      - photos
+  /photo/{photo_uuid}/file:
+    get:
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      - description: Signed access key (from list/info responses)
+        in: query
+        name: access_key
+        required: true
+        type: string
+      - description: Size
+        enum:
+        - raw
+        - medium
+        - small
+        in: query
+        name: photo_size
+        type: string
+      produces:
+      - image/jpeg
+      responses:
+        "200":
+          description: 'Image bytes, Content-Type: image/jpeg'
+          schema:
+            type: file
+        "400":
+          description: empty photo id / empty access key / invalid photo size / invalid
+            request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: photo is not permitted
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Download photo file
+      tags:
+      - photos
+  /photo/{photo_uuid}/secret:
+    delete:
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: invalid authorization (not the owner)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a photo access secret
+      tags:
+      - photos
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Photo UUID
+        in: path
+        name: photo_uuid
+        required: true
+        type: string
+      - description: expires_duration (ns duration)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.AccessLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/create.PhotoAccessSecretResponse'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access link already exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Grant photo access
+      tags:
+      - photos
+  /photos:
+    get:
+      parameters:
+      - description: Owner login; without the param — all public photos
+        in: query
+        name: owner_login
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.PhotoInfo'
+            type: array
+        "404":
+          description: owner not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: List photos
+      tags:
+      - photos
+    post:
+      consumes:
+      - multipart/form-data
+      description: Total body size limit is 10 MB.
+      parameters:
+      - description: 'JSON: title (≤50), description (≤200), created_at, took_at,
+          access_level (private|protected|public), tag_uuids []'
+        in: formData
+        name: metadata
+        required: true
+        type: string
+      - description: Photo file
+        in: formData
+        name: photo
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/upload.Response'
+        "400":
+          description: invalid metadata / validation / invalid photo file / file too
+            big / tag does not exist
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: quota is not enough
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Upload a photo
+      tags:
+      - photos
+  /tags:
+    get:
+      parameters:
+      - description: Filter tags by photo UUID
+        in: query
+        name: photo_uuid
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.TagInfo'
+            type: array
+        "400":
+          description: invalid photo uuid / photo not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: List tags
+      tags:
+      - tags
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: tag_name (2-50, unique), tag_description (≤200)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.SaveTagInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/upload.TagCreateResponse'
+        "400":
+          description: invalid metadata / validation / tag with this name already
+            exists
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Create a tag
+      tags:
+      - tags
+  /tags/{tag_uuid}:
+    delete:
+      parameters:
+      - description: Tag UUID
+        in: path
+        name: tag_uuid
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Delete a tag
+      tags:
+      - tags
+  /users:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/view.UsersInfoResponse'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access denied (admin role required)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: List users
+      tags:
+      - users
+  /users/{user_uuid}:
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: User UUID
+        in: path
+        name: user_uuid
+        required: true
+        type: string
+      - description: user_role (user|moderator), photos_quota (≥0), collections_quota
+          (≥0)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/service.PatchUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: invalid metadata / validation / invalid request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: token is empty / invalid token
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: access denied (admin role required)
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: user not found
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Update user (role / quotas)
+      tags:
+      - users
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Format: "Bearer <access_token>"'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

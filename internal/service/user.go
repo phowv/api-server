@@ -17,43 +17,43 @@ import (
 
 const (
 	verificationCodeExpirationTime = 15 * time.Minute
-	minimalPasswordLength = 8
+	minimalPasswordLength          = 8
 )
 
 type UserData struct {
-	Login string `json:"login"`
-	Email string `json:"email"`
-	Password string `json:"password"`
+	Login       string `json:"login" validate:"required,min=2,max=50"`
+	Email       string `json:"email" validate:"required,min=2,max=50"`
+	Password    string `json:"password" validate:"required,min=8,max=50"`
 	Description string `json:"description"`
 }
 
 type UserAuthCredentials struct {
-	Login string `json:"login"`
+	Login    string `json:"login" validate:"required,min=2,max=50"`
 	Password string `json:"password"`
 }
 
 type UserVerifyCredentials struct {
-	Login string `json:"login"`
-	Code string `json:"code"`
+	Login string `json:"login" validate:"required,min=2,max=50"`
+	Code  string `json:"code"`
 }
 
 type UserService struct {
-	log *slog.Logger
-	userRepo UserRepo
-	sessionRepo SessionRepo
-	mailService *mail.MailService
-	verificationCodeRepo VerificationCodeRepo
+	log                      *slog.Logger
+	userRepo                 UserRepo
+	sessionRepo              SessionRepo
+	mailService              *mail.MailService
+	verificationCodeRepo     VerificationCodeRepo
 	generateVerificationCode func() (string, error)
-	fileRepo FileRepo
-	initinalPhotosQuota int
-	txManager storage.TxManager
+	fileRepo                 FileRepo
+	initinalPhotosQuota      int
+	txManager                storage.TxManager
 }
 
 type User struct {
 	UserUuid uuid.UUID
-	Role string
-	Login string
-	Email string
+	Role     string
+	Login    string
+	Email    string
 }
 
 func NewUserService(
@@ -68,15 +68,15 @@ func NewUserService(
 	txManager storage.TxManager,
 ) *UserService {
 	return &UserService{
-		log: log,
-		userRepo: userRepo,
-		sessionRepo: sessionRepo,
-		mailService: mailService,
-		verificationCodeRepo: verificationCodeRepo,
+		log:                      log,
+		userRepo:                 userRepo,
+		sessionRepo:              sessionRepo,
+		mailService:              mailService,
+		verificationCodeRepo:     verificationCodeRepo,
 		generateVerificationCode: generateVerificationCode,
-		fileRepo: fileRepo,
-		initinalPhotosQuota: initinalPhotosQuota,
-		txManager: txManager,
+		fileRepo:                 fileRepo,
+		initinalPhotosQuota:      initinalPhotosQuota,
+		txManager:                txManager,
 	}
 }
 
@@ -92,7 +92,7 @@ func comparePasswords(password, hash string) bool {
 
 func hashToken(token string) (string, error) {
 	digest := sha256.Sum256([]byte(token))
-  bytes, err := bcrypt.GenerateFromPassword(digest[:], 14)
+	bytes, err := bcrypt.GenerateFromPassword(digest[:], 14)
 
 	return string(bytes), err
 }
@@ -117,35 +117,35 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
 		user := entity.User{
-			Login: data.Login,
-			Email: data.Email,
-			Role: "user",
-			Description: data.Description,
+			Login:        data.Login,
+			Email:        data.Email,
+			Role:         entity.UserDefaultRole,
+			Description:  data.Description,
 			HashPassword: hashedPassword,
-			CreateDate: time.Now(),
-			IsActive: false,
-			PhotosQuota: s.initinalPhotosQuota,
+			CreateDate:   time.Now(),
+			IsActive:     false,
+			PhotosQuota:  s.initinalPhotosQuota,
 		}
 
-		existingUser, err := s.userRepo.GetUserByEmail(ctx, data.Email)
+		existingUser, err := s.userRepo.GetUserByEmail(txCtx, data.Email)
 
 		if existingUser != nil {
 			return ErrUserExists
 		}
 
-		existingUser, err = s.userRepo.GetUserByLogin(ctx, data.Login)
+		existingUser, err = s.userRepo.GetUserByLogin(txCtx, data.Login)
 
 		if existingUser != nil {
 			return ErrUserExists
 		}
 
-		id, err = s.userRepo.CreateUser(ctx, &user)
+		id, err = s.userRepo.CreateUser(txCtx, &user)
 
 		if err != nil {
 			return fmt.Errorf("failed to create user: %w", err)
 		}
 
-		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error delete all codes by user uuid: %w", err)
@@ -167,13 +167,13 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 		}
 
 		verificationCode := entity.VerificationCode{
-			UserUuid: id,
-			HashCode: hashedCode,
+			UserUuid:    id,
+			HashCode:    hashedCode,
 			CreatedDate: time.Now(),
-			ExpiresAt: time.Now().Add(verificationCodeExpirationTime),
+			ExpiresAt:   time.Now().Add(verificationCodeExpirationTime),
 		}
 
-		 err = s.verificationCodeRepo.SaveVerificationCode(ctx, &verificationCode)
+		err = s.verificationCodeRepo.SaveVerificationCode(txCtx, &verificationCode)
 
 		if err != nil {
 			return fmt.Errorf("failed to save verification code: %w", err)
@@ -190,37 +190,35 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 
 func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials UserVerifyCredentials) error {
 	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		user, err := s.userRepo.GetUserByLogin(ctx, userVerifyCredentials.Login)
+		user, err := s.userRepo.GetUserByLogin(txCtx, userVerifyCredentials.Login)
 
 		if err != nil {
 			return fmt.Errorf("error get user: %w", err)
 		}
 
-		code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(ctx, user.UserUuid)
+		code, err := s.verificationCodeRepo.GetValidVerificationCodeByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error get verification code: %w", err)
 		}
-		
+
 		if !comparePasswords(userVerifyCredentials.Code, code.HashCode) {
 			return ErrUserInvalidAuthentication
 		}
 
-		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(ctx, user.UserUuid)
+		err = s.verificationCodeRepo.DeleteAllVerificationCodesByUserUuid(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("error delete all codes by user uuid: %w", err)
 		}
 
-		fields := make(map[string]any)
-		fields["is_active"] = true
-		err = s.userRepo.UpdateUser(ctx, user.UserUuid, fields)
+		err = s.userRepo.ActivateUser(txCtx, user.UserUuid)
 
 		if err != nil {
 			return fmt.Errorf("failed to set active user: %w", err)
 		}
 
-		err = s.fileRepo.CreateBucket(ctx, user.UserUuid.String())
+		err = s.fileRepo.CreateBucket(txCtx, user.UserUuid.String())
 		if err != nil {
 			return fmt.Errorf("failed to create bucket: %w", err)
 		}
@@ -241,7 +239,7 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 	}
 
 	if !user.IsActive {
-		return nil, ErrUserIsNotActive 
+		return nil, ErrUserIsNotActive
 	}
 
 	if !comparePasswords(userCredentials.Password, user.HashPassword) {
@@ -250,9 +248,9 @@ func (s *UserService) AuthenticateUser(ctx context.Context, userCredentials User
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: user.Role,
-		Login: user.Login,
-		Email: user.Email,
+		Role:     string(user.Role),
+		Login:    user.Login,
+		Email:    user.Email,
 	}, nil
 }
 
@@ -262,16 +260,16 @@ func (s *UserService) GetUserInfo(ctx context.Context, userUuid uuid.UUID) (*Use
 	if err != nil {
 		return nil, fmt.Errorf("error get user: %w", err)
 	}
-	
+
 	if !user.IsActive {
-		return nil, ErrUserIsNotActive 
+		return nil, ErrUserIsNotActive
 	}
 
 	return &User{
 		UserUuid: user.UserUuid,
-		Role: user.Role,
-		Login: user.Login,
-		Email: user.Email,
+		Role:     string(user.Role),
+		Login:    user.Login,
+		Email:    user.Email,
 	}, nil
 }
 
@@ -284,14 +282,14 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 
 	session := entity.Session{
 		SessionUuid: sessionUuid,
-		UserUuid: userUuid,
-		ExpiresAt: expiresAt,
-		HashToken: hashToken,
-		IsRevoked: false,
+		UserUuid:    userUuid,
+		ExpiresAt:   expiresAt,
+		HashToken:   hashToken,
+		IsRevoked:   false,
 	}
 
 	err = s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		_, err := s.sessionRepo.SaveSession(ctx, &session)
+		_, err := s.sessionRepo.SaveSession(txCtx, &session)
 		return err
 	})
 
@@ -302,9 +300,9 @@ func (s *UserService) CreateSession(ctx context.Context, sessionUuid uuid.UUID, 
 	return nil
 }
 
-func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
+func (s *UserService) RefreshSession(ctx context.Context, sessionUuid uuid.UUID, userUuid uuid.UUID, token string) (*User, error) {
 	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		session, err := s.sessionRepo.GetValidSessionByUuid(ctx, sessionUuid)
+		session, err := s.sessionRepo.GetValidSessionByUuid(txCtx, sessionUuid)
 		if err != nil {
 			return fmt.Errorf("failed to get session: %w", err)
 		}
@@ -313,14 +311,10 @@ func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.
 			return errors.New("expired token")
 		}
 
-		err = s.sessionRepo.RevokeSessionByUuid(ctx, sessionUuid)
+		err = s.sessionRepo.RevokeSessionByUuid(txCtx, sessionUuid)
 
 		if err != nil {
 			return fmt.Errorf("failed to revoke session: %w", err)
-		}
-
-		if session.ExpiresAt.Before(time.Now()) {
-			return errors.New("expired token")
 		}
 
 		return nil
@@ -331,4 +325,20 @@ func (s *UserService) AuthenticateSession(ctx context.Context, sessionUuid uuid.
 	}
 
 	return s.GetUserInfo(ctx, userUuid)
+}
+
+func (s *UserService) RevokeSession(ctx context.Context, sessionUuid uuid.UUID) error {
+	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
+		err := s.sessionRepo.RevokeSessionByUuid(txCtx, sessionUuid)
+
+		if err != nil {
+			if errors.Is(err, storage.ErrSessionNotFound) {
+				return ErrSessionNotFound
+			}
+
+			return fmt.Errorf("failed to revoke session: %w", err)
+		}
+
+		return nil
+	})
 }

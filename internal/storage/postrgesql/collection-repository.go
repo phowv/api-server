@@ -36,7 +36,7 @@ func (s *CollectionRepository) SaveCollection(ctx context.Context, collection *e
 		for i, photo := range collection.Photos {
 			collectionPhotoEntities[i] = entity.CollectionPhotoEntity{
 				CollectionUuid: collection.CollectionUuid,
-				PhotoUuid: photo.PhotoUuid,
+				PhotoUuid:      photo.PhotoUuid,
 			}
 		}
 
@@ -121,9 +121,9 @@ func (s *CollectionRepository) GetAllPermittedCollectionsByOwner(ctx context.Con
 		Where("owner_uuid = ?", ownerUuid).
 		Where(
 			s.getDB(ctx).
-			Where("access_level = ?", "public").
-			Or("owner_uuid = ?", userUuid).
-			Or("collection_uuid IN (?)", permittedCollections),
+				Where("access_level = ?", "public").
+				Or("owner_uuid = ?", userUuid).
+				Or("collection_uuid IN (?)", permittedCollections),
 		).
 		Find(&collections).Error
 
@@ -153,7 +153,7 @@ func (s *CollectionRepository) DeleteCollection(ctx context.Context, collectionU
 func (s *CollectionRepository) AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error {
 	collectionPhotoEntity := entity.CollectionPhotoEntity{
 		CollectionUuid: collectionUuid,
-		PhotoUuid: photoUuid,
+		PhotoUuid:      photoUuid,
 	}
 
 	err := s.getDB(ctx).Create(&collectionPhotoEntity).Error
@@ -180,7 +180,7 @@ func (s *CollectionRepository) RemovePhotoFromCollection(ctx context.Context, co
 	}
 
 	if res.RowsAffected == 0 {
-			return storage.ErrPhotoNotFound
+		return storage.ErrPhotoNotFound
 	}
 
 	return nil

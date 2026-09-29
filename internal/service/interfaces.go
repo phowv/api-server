@@ -5,41 +5,49 @@ import (
 	"errors"
 	"photo-viewer-server/internal/lib/signer"
 	"photo-viewer-server/internal/storage/entity"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type StoredPhotoType string
 
-
 const (
-	PhotoSizeSmall StoredPhotoType = "small"
+	PhotoSizeSmall  StoredPhotoType = "small"
 	PhotoSizeMedium StoredPhotoType = "medium"
-	PhotoSizeRaw StoredPhotoType = "raw"
+	PhotoSizeRaw    StoredPhotoType = "raw"
 )
 
 var (
-	ErrInvalidPhotoSize = errors.New("invalid photo size")
-	ErrPhotoNotFound = errors.New("photo not found")
+	ErrInvalidPhotoSize    = errors.New("invalid photo size")
+	ErrPhotoNotFound       = errors.New("photo not found")
 	ErrPhotoIsNotPermitted = errors.New("photo is not permitted")
 
 	ErrTagDoesNotExists = errors.New("tag doesn't exists")
 	ErrTagAlreadyExists = errors.New("tag already exists")
 
-	ErrCollectionAlreadyExists = errors.New("collection already exists")
-	ErrCollectionNotFound = errors.New("collection not found")
+	ErrCollectionAlreadyExists  = errors.New("collection already exists")
+	ErrCollectionNotFound       = errors.New("collection not found")
 	ErrCollectionIsNotPermitted = errors.New("collection is not permitted")
 
 	ErrCollectionActionIsNotPermitted = errors.New("collection action is not permitted")
 	ErrPhotoInCollectionAlreadyExists = errors.New("photo in collection already exists")
 
-	ErrUserNotFound = errors.New("user already exists")
-	ErrUserExists = errors.New("user already exists")
-	ErrUserPasswordTooShort = errors.New("password too short")
+	ErrUserNotFound              = errors.New("user already exists")
+	ErrUserExists                = errors.New("user already exists")
+	ErrUserPasswordTooShort      = errors.New("password too short")
 	ErrUserInvalidAuthentication = errors.New("invalid user authentication")
-	ErrUserInvalidAuthorization = errors.New("invalid user authorization")
-	ErrUserIsNotActive = errors.New("user is not active")
-	ErrUserQuotaIsNotEnough = errors.New("quota is not enough")
+	ErrUserInvalidAuthorization  = errors.New("invalid user authorization")
+	ErrUserIsNotActive           = errors.New("user is not active")
+	ErrUserQuotaIsNotEnough      = errors.New("quota is not enough")
+
+	ErrSessionNotFound = errors.New("session not found")
+	ErrForbidden       = errors.New("forbidden")
+
+	ErrOperationIsNotPermitted = errors.New("operation is not permitted")
+
+	ErrAccessLinkNotFound      = errors.New("not found")
+	ErrAccessLinkAlreadyExists = errors.New("access link already exists")
 )
 
 type Healthchecker interface {
@@ -50,11 +58,11 @@ type Healthchecker interface {
 type PhotoRepo interface {
 	SavePhoto(ctx context.Context, photo *entity.Photo) (uuid.UUID, error)
 	GetAllPhotos(ctx context.Context) ([]entity.Photo, error)
-  GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
-  GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
+	GetPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
+	GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error)
 	GetPhoto(ctx context.Context, uuid uuid.UUID) (*entity.Photo, error)
 	DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error
-  UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
+	UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error
 }
 
 type TagRepo interface {
@@ -63,6 +71,7 @@ type TagRepo interface {
 	GetAllTags(ctx context.Context) ([]entity.Tag, error)
 	GetTagsByPhoto(ctx context.Context, photoUuid uuid.UUID) ([]entity.Tag, error)
 	GetTagByName(ctx context.Context, tagName string) (*entity.Tag, error)
+	DeleteTag(ctx context.Context, tagUuid uuid.UUID) error
 }
 
 type FileRepo interface {
@@ -93,9 +102,14 @@ type UserRepo interface {
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
-	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
+	ActivateUser(ctx context.Context, uuid uuid.UUID) error
 	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
 	DecrementCollectionsQuotaByUuid(ctx context.Context, uuid uuid.UUID) error
+}
+
+type AdminUserRepo interface {
+	GetAllUsers(ctx context.Context) ([]entity.User, error)
+	UpdateUser(ctx context.Context, uuid uuid.UUID, fields map[string]any) error
 }
 
 type AccessRepo interface {
@@ -103,14 +117,18 @@ type AccessRepo interface {
 	IsUserCanAccessPhotoByUuid(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
 	GetValidAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) (*entity.CollectionAccessLink, error)
 	IsUserCanAccessCollectionByUuid(ctx context.Context, collectionUuid uuid.UUID, userUuid uuid.UUID) (bool, error)
+	SavePhotoAccessLink(ctx context.Context, accessLink *entity.PhotoAccessLink) error
+	SaveCollectionAccessLink(ctx context.Context, accessLink *entity.CollectionAccessLink) error
+	DeleteAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) error
+	DeleteAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) error
 }
 
 type ImageProcessor interface {
-  ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
+	ResizeAndCompress(ctx context.Context, rawImage []byte, maxWidth, maxHeight int, quality int) ([]byte, error)
 }
 
-type PhotoKeySigner interface {
-  Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
+type PhotoFileAccessSigner interface {
+	Sign(photoUuid, ownerUuid uuid.UUID, photoRaw, photoMedium, photoSmall string) (string, error)
 	Validate(token string, expectedPhotoUuid uuid.UUID) (*signer.FileKeyPayload, error)
 }
 
@@ -123,5 +141,9 @@ type SessionRepo interface {
 type VerificationCodeRepo interface {
 	SaveVerificationCode(ctx context.Context, verificationCode *entity.VerificationCode) error
 	DeleteAllVerificationCodesByUserUuid(ctx context.Context, userUuid uuid.UUID) error
-  GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
+	GetValidVerificationCodeByUserUuid(ctx context.Context, userUuid uuid.UUID) (*entity.VerificationCode, error)
+}
+
+type AccessLinkRequest struct {
+	ExpiresDuration time.Duration `json:"expires_duration" swaggertype:"integer" validate:"required"`
 }

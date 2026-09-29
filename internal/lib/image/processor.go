@@ -7,7 +7,7 @@ import (
 	"github.com/davidbyttow/govips/v2/vips"
 )
 
-type Processor struct {}
+type Processor struct{}
 
 func Initialize() {
 	vips.Startup(&vips.Config{
@@ -43,7 +43,7 @@ func (p *Processor) ResizeAndCompress(ctx context.Context, rawImage []byte, maxW
 		}
 	}
 
-	err = image.Resize(float64(maxWidth) / float64(width), vips.KernelLanczos2)
+	err = image.Resize(float64(maxWidth)/float64(width), vips.KernelLanczos2)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to resize image: %w", err)

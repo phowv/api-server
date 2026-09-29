@@ -7,7 +7,6 @@ import (
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/service"
-	"photo-viewer-server/internal/storage"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -15,6 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// RemovePhoto deletes the owner's photo and its files.
+//
+//	@Summary		Delete a photo
+//	@Tags				photos
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			photo_uuid	path		string	true	"Photo UUID"
+//	@Success		200			{object}	response.Response
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"invalid authorization (not the owner)"
+//	@Failure		404			{object}	response.Response	"not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photo/{photo_uuid} [delete]
 func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -40,13 +53,20 @@ func RemovePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 			return
 		}
 
-		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
+		userUuid, ok := r.Context().Value("user_uuid").(uuid.UUID)
+		if !ok {
+			log.Error("invalid user_uuid in ctx", slog.Any("user_uuid", r.Context().Value("user_uuid")))
+
+			render.Status(r, http.StatusInternalServerError)
+			render.JSON(w, r, response.Error("internal error"))
+			return
+		}
 
 		err = photoService.DeletePhoto(r.Context(), photoUuid, userUuid)
 		if err != nil {
 			log.Error("error remove photo", sl.Err(err))
 
-			if errors.Is(err, storage.ErrPhotoNotFound) {
+			if errors.Is(err, service.ErrPhotoNotFound) {
 				render.Status(r, http.StatusNotFound)
 				render.JSON(w, r, response.Error("not found"))
 				return
