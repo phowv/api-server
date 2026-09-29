@@ -31,7 +31,7 @@ type PhotoAccessSecretResponse struct {
 //	@Security		BearerAuth
 //	@Param			photo_uuid	path		string	true	"Photo UUID"
 //	@Param			body		body	service.AccessLinkRequest	true	"expires_duration (ns duration)"
-//	@Success		200			{object}	update.Response
+//	@Success		200			{object}	create.PhotoAccessSecretResponse
 //	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid request"
 //	@Failure		401			{object}	response.Response	"token is empty / invalid token"
 //	@Failure		403			{object}	response.Response	"access link already exists"

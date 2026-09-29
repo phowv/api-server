@@ -578,7 +578,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/update.Response"
+                            "$ref": "#/definitions/create.CollectionAccessSecretResponse"
                         }
                     },
                     "400": {
@@ -1097,7 +1097,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/update.Response"
+                            "$ref": "#/definitions/create.PhotoAccessSecretResponse"
                         }
                     },
                     "400": {
@@ -1601,6 +1601,44 @@ const docTemplate = `{
                 },
                 "user_role": {
                     "type": "string"
+                }
+            }
+        },
+        "create.CollectionAccessSecretResponse": {
+            "type": "object",
+            "properties": {
+                "access_secret": {
+                    "type": "string"
+                },
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "create.PhotoAccessSecretResponse": {
+            "type": "object",
+            "properties": {
+                "access_secret": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
                 }
             }
         },

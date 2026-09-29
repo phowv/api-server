@@ -20,6 +20,32 @@ definitions:
       user_role:
         type: string
     type: object
+  create.CollectionAccessSecretResponse:
+    properties:
+      access_secret:
+        type: string
+      collection_uuid:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
+  create.PhotoAccessSecretResponse:
+    properties:
+      access_secret:
+        type: string
+      error:
+        example: Some error description
+        type: string
+      photo_uuid:
+        type: string
+      status:
+        example: Ok
+        type: string
+    type: object
   entity.AccessModifier:
     enum:
     - private
@@ -760,7 +786,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/update.Response'
+            $ref: '#/definitions/create.CollectionAccessSecretResponse'
         "400":
           description: invalid metadata / validation / invalid request
           schema:
@@ -1098,7 +1124,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/update.Response'
+            $ref: '#/definitions/create.PhotoAccessSecretResponse'
         "400":
           description: invalid metadata / validation / invalid request
           schema:
