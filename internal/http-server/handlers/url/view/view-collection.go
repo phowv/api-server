@@ -3,16 +3,29 @@ package view
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"net/http"
-	"photo-viewer-server/internal/lib/api/response"
-	"photo-viewer-server/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 	"github.com/google/uuid"
+	"log/slog"
+	"net/http"
+	"photo-viewer-server/internal/lib/api/response"
+	"photo-viewer-server/internal/service"
 )
 
+// ViewCollection returns a collection with the list of accessible photos in it.
+//
+//	@Summary		Collection info
+//	@Tags				collections
+//	@Produce		json
+//	@Param			collection_uuid	path		string	true	"Collection UUID"
+//	@Param			collection_access_secret	query	string	false	"Access link secret (for protected collections)"
+//	@Success		200			{object}	service.CollectionInfo
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		403			{object}	response.Response	"collection is not permitted"
+//	@Failure		404			{object}	response.Response	"collection not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/collection/{collection_uuid} [get]
 func ViewCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -30,7 +43,7 @@ func ViewCollection(lg *slog.Logger, collectionService *service.CollectionServic
 		}
 
 		accessKey := r.URL.Query().Get("collection_access_secret")
-		r.WithContext(context.WithValue(r.Context(), "collection_access_secret", accessKey))
+		r = r.WithContext(context.WithValue(r.Context(), "collection_access_secret", accessKey))
 
 		collectionUuid, err := uuid.Parse(collectionUuidStr)
 		if err != nil {

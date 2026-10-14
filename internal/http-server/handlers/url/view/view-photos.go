@@ -13,6 +13,16 @@ import (
 	"github.com/go-chi/render"
 )
 
+// ViewPhotos lists photos. Anonymous and non-owner requests get only public photos; the owner gets all of theirs.
+//
+//	@Summary		List photos
+//	@Tags				photos
+//	@Produce		json
+//	@Param			owner_login	query		string	false	"Owner login; without the param — all public photos"
+//	@Success		200			{object}	[]service.PhotoInfo
+//	@Failure		404			{object}	response.Response	"owner not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photos [get]
 func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -31,7 +41,7 @@ func ViewPhotos(lg *slog.Logger, photoService *service.PhotoService) http.Handle
 			}
 
 			log.Error("error get photos", sl.Err(err))
-			
+
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
 			return

@@ -24,6 +24,9 @@ func (s *AccessRepository) SavePhotoAccessLink(ctx context.Context, accessLink *
 	err := s.getDB(ctx).Create(accessLink).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return storage.ErrAccessLinkAlreadyExists
+		}
 		return fmt.Errorf("error persist photo access link entity: %w", err)
 	}
 
@@ -47,16 +50,52 @@ func (s *AccessRepository) GetValidAccessLinkByPhotoUuid(ctx context.Context, ph
 	return &accessLink, nil
 }
 
+func (s *AccessRepository) RevokeAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) error {
+	res := s.getDB(ctx).Model(entity.PhotoAccessLink{}).Where("photo_uuid = ?", photoUuid).Update("is_revoked", true)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrAccessLinkNotFound
+		}
+
+		return fmt.Errorf("error revoke access link: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrAccessLinkNotFound
+	}
+
+	return nil
+}
+
+func (s *AccessRepository) DeleteAccessLinkByPhotoUuid(ctx context.Context, photoUuid uuid.UUID) error {
+	res := s.getDB(ctx).Delete(entity.PhotoAccessLink{}, photoUuid)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrAccessLinkNotFound
+		}
+
+		return fmt.Errorf("error delete access link: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrAccessLinkNotFound
+	}
+
+	return nil
+}
+
 func (s *AccessRepository) GrantAccessPhotoToUser(ctx context.Context, photoUuid uuid.UUID, userUuid uuid.UUID) error {
 	permittedUserEntity := entity.PhotoPermittedUser{
 		PhotoUuid: photoUuid,
-		UserUuid: userUuid,
+		UserUuid:  userUuid,
 	}
-	
+
 	err := s.getDB(ctx).Create(&permittedUserEntity).Error
 
 	if err != nil {
-		return  fmt.Errorf("error persist photo permitted user entity: %w", err)
+		return fmt.Errorf("error persist photo permitted user entity: %w", err)
 	}
 
 	return nil
@@ -77,6 +116,9 @@ func (s *AccessRepository) SaveCollectionAccessLink(ctx context.Context, accessL
 	err := s.getDB(ctx).Create(accessLink).Error
 
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return storage.ErrAccessLinkAlreadyExists
+		}
 		return fmt.Errorf("error persist collection access link entity: %w", err)
 	}
 
@@ -100,16 +142,52 @@ func (s *AccessRepository) GetValidAccessLinkByCollectionUuid(ctx context.Contex
 	return &accessLink, nil
 }
 
+func (s *AccessRepository) RevokeAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) error {
+	res := s.getDB(ctx).Model(entity.CollectionAccessLink{}).Where("collection_uuid = ?", collectionUuid).Update("is_revoked", true)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrAccessLinkNotFound
+		}
+
+		return fmt.Errorf("error revoke access link: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrAccessLinkNotFound
+	}
+
+	return nil
+}
+
+func (s *AccessRepository) DeleteAccessLinkByCollectionUuid(ctx context.Context, collectionUuid uuid.UUID) error {
+	res := s.getDB(ctx).Delete(entity.CollectionAccessLink{}, collectionUuid)
+
+	if res.Error != nil {
+		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
+			return storage.ErrAccessLinkNotFound
+		}
+
+		return fmt.Errorf("error delete access link: %w", res.Error)
+	}
+
+	if res.RowsAffected == 0 {
+		return storage.ErrAccessLinkNotFound
+	}
+
+	return nil
+}
+
 func (s *AccessRepository) GrantAccessCollectionToUser(ctx context.Context, collectionUuid uuid.UUID, userUuid uuid.UUID) error {
 	permittedUserEntity := entity.CollectionPermittedUser{
 		CollectionUuid: collectionUuid,
-		UserUuid: userUuid,
+		UserUuid:       userUuid,
 	}
-	
+
 	err := s.getDB(ctx).Create(&permittedUserEntity).Error
 
 	if err != nil {
-		return  fmt.Errorf("error persist collection permitted user entity: %w", err)
+		return fmt.Errorf("error persist collection permitted user entity: %w", err)
 	}
 
 	return nil
@@ -125,4 +203,3 @@ func (s *AccessRepository) IsUserCanAccessCollectionByUuid(ctx context.Context, 
 
 	return count > 0, nil
 }
-

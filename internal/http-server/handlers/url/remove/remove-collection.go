@@ -14,6 +14,20 @@ import (
 	"github.com/google/uuid"
 )
 
+// RemoveCollection deletes the owner's collection (photo files are not deleted).
+//
+//	@Summary		Delete a collection
+//	@Tags				collections
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			collection_uuid	path		string	true	"Collection UUID"
+//	@Success		200			{object}	response.Response
+//	@Failure		400			{object}	response.Response	"invalid request"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"not permitted (not the owner)"
+//	@Failure		404			{object}	response.Response	"not found"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/collection/{collection_uuid} [delete]
 func RemoveCollection(lg *slog.Logger, collectionService *service.CollectionService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(

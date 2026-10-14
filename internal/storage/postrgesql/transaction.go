@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type txKey struct {}
+type txKey struct{}
 
 type TransactionManager struct {
 	*Storage

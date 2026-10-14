@@ -8,26 +8,41 @@ import (
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/logger/sl"
-	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/go-playground/validator/v10"
+	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
 const (
-	MaxBodySize = 10 * 1024 * 1024
+	MaxBodySize  = 10 * 1024 * 1024
 	MaxPhotoSize = MaxBodySize - 1024
 )
 
 type Response struct {
 	response.Response
-  PhotoUuid uuid.UUID `json:"photo_uuid"`
+	PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
-func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
+// UploadPhoto stores a photo with metadata and tags; generates medium/small renditions.
+//
+//	@Summary		Upload a photo
+//	@Description	Total body size limit is 10 MB.
+//	@Tags				photos
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			metadata	formData	string	true	"JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public), tag_uuids []"
+//	@Param			photo		formData	file	true	"Photo file"
+//	@Success		201			{object}	upload.Response
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid photo file / file too big / tag does not exist"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		403			{object}	response.Response	"quota is not enough"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/photos [post]
+func UploadPhoto(lg *slog.Logger, validator *vlpkg.Validate, photoService *service.PhotoService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.upload.UploadPhoto"),
@@ -49,8 +64,15 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		log.Info("request metadata decoded", slog.Any("metadata", metadata))
 
-		if err := validatorx.NewValidator().Struct(metadata); err != nil {
-			validateErr := err.(validator.ValidationErrors)
+		if err := validator.Struct(metadata); err != nil {
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
 
 			log.Error("error validate request metadata", sl.Err(err))
 
@@ -83,15 +105,15 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
-			return 
+			return
 		}
 
 		log.Info("receive photo file", slog.Int64("size", header.Size))
 
 		input := service.SavePhotoInput{
-			Metadata: metadata,
-			Filename: header.Filename,
-			Content: fileBytes,
+			Metadata:    metadata,
+			Filename:    header.Filename,
+			Content:     fileBytes,
 			ContentType: header.Header.Get("Content-Type"),
 		}
 
@@ -114,7 +136,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 			render.Status(r, http.StatusInternalServerError)
 			render.JSON(w, r, response.Error("internal error"))
-			return 
+			return
 		}
 
 		log.Info("saved photo", slog.Any("photo_uuid", photoUuid))
@@ -126,7 +148,7 @@ func UploadPhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
-		Response: response.OK(),
+		Response:  response.OK(),
 		PhotoUuid: photoUuid,
 	})
 }

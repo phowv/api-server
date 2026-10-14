@@ -1,0 +1,2137 @@
+{
+    "schemes": [
+        "http"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "title": "Photo Viewer API",
+        "contact": {},
+        "version": "dev"
+    },
+    "basePath": "/api/v1",
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Returns an access token in the body and sets an HttpOnly refresh_token cookie (Path=/api/v1/auth/refresh).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login",
+                "parameters": [
+                    {
+                        "description": "login (2-50), password",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UserAuthCredentials"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.AccessTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid credentials / user not active / already authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "failed to create tokens",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Revokes the session bound to the current access token.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "session not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Get current user",
+                "responses": {
+                    "200": {
+                        "description": "user_login, user_email, user_role",
+                        "schema": {
+                            "$ref": "#/definitions/auth.UserInfoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "failed to get user info (incl. inactive user)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Requires the refresh_token cookie. Revokes the current session and issues a new access token and cookie.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh access token",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/auth.AccessTokenResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "missing authentication / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "already authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "failed to create tokens",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "description": "Account is inactive until the verification code is confirmed via /auth/verify.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "login (2-50), email (2-50), password (8-50), description",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UserData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / user already exists / password too short",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "already authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/verify": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify user email",
+                "parameters": [
+                    {
+                        "description": "login (2-50), code",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.UserVerifyCredentials"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid code / already authenticated",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/collection/{collection_uuid}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Collection info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Access link secret (for protected collections)",
+                        "name": "collection_access_secret",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.CollectionInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "collection is not permitted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "collection not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Delete a collection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "not permitted (not the owner)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/collection/{collection_uuid}/photo/{photo_uuid}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Remove photo from collection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "remove from collection is not permitted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "collection not found / photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/collection/{collection_uuid}/photos": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Add photo to collection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Photo UUID",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/update.AddPhotoToCollectionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/update.AddPhotoToCollectionResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request / photo in collection already exists",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "add to collection is not permitted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "collection not found / photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/collection/{collection_uuid}/secret": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Grant collection access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "expires_duration (ns duration)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.AccessLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/create.CollectionAccessSecretResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "access link already exists",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Delete a collection access secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Collection UUID",
+                        "name": "collection_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid authorization (not the owner)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/collections": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "List collections",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Owner login; without the param — all visible collections",
+                        "name": "owner_login",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.SimpleCollectionInfo"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "owner not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collections"
+                ],
+                "summary": "Create a collection",
+                "parameters": [
+                    {
+                        "description": "title (≤50), description (≤200), access_level (private|protected|public), photo_uuids []",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.SaveCollectionInputMetadata"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/upload.CollecionCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "quota is not enough / collection already exists",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error (incl. unknown photo in photo_uuids)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Healthcheck",
+                "responses": {
+                    "200": {
+                        "description": "healthy: true",
+                        "schema": {
+                            "$ref": "#/definitions/healthcheck.HealthcheckResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "some dependency is unreachable",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photo/{photo_uuid}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Photo info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Access link secret (for protected photos)",
+                        "name": "photo_access_secret",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.PhotoInfo"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "photo is not permitted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Delete a photo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid authorization (not the owner)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Update photo metadata",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.PatchPhotoRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/update.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photo/{photo_uuid}/file": {
+            "get": {
+                "produces": [
+                    "image/jpeg"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Download photo file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Signed access key (from list/info responses)",
+                        "name": "access_key",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "raw",
+                            "medium",
+                            "small"
+                        ],
+                        "type": "string",
+                        "description": "Size",
+                        "name": "photo_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Image bytes, Content-Type: image/jpeg",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "empty photo id / empty access key / invalid photo size / invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "photo is not permitted",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photo/{photo_uuid}/secret": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Grant photo access",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "expires_duration (ns duration)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.AccessLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/create.PhotoAccessSecretResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "access link already exists",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Delete a photo access secret",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Photo UUID",
+                        "name": "photo_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "invalid authorization (not the owner)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/photos": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "List photos",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Owner login; without the param — all public photos",
+                        "name": "owner_login",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.PhotoInfo"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "owner not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Total body size limit is 10 MB.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "photos"
+                ],
+                "summary": "Upload a photo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JSON: title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public), tag_uuids []",
+                        "name": "metadata",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Photo file",
+                        "name": "photo",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/upload.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / invalid photo file / file too big / tag does not exist",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "quota is not enough",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tags": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tags"
+                ],
+                "summary": "List tags",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter tags by photo UUID",
+                        "name": "photo_uuid",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/service.TagInfo"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "invalid photo uuid / photo not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tags"
+                ],
+                "summary": "Create a tag",
+                "parameters": [
+                    {
+                        "description": "tag_name (2-50, unique), tag_description (≤200)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.SaveTagInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/upload.TagCreateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / tag with this name already exists",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/tags/{tag_uuid}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "tags"
+                ],
+                "summary": "Delete a tag",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Tag UUID",
+                        "name": "tag_uuid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "List users",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/view.UsersInfoResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "access denied (admin role required)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/users/{user_uuid}": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "users"
+                ],
+                "summary": "Update user (role / quotas)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User UUID",
+                        "name": "user_uuid",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "user_role (user|moderator), photos_quota (≥0), collections_quota (≥0)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.PatchUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "invalid metadata / validation / invalid request",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "401": {
+                        "description": "token is empty / invalid token",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "access denied (admin role required)",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "user not found",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "internal error",
+                        "schema": {
+                            "$ref": "#/definitions/response.Response"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "auth.AccessTokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "auth.UserInfoResponse": {
+            "type": "object",
+            "properties": {
+                "user_email": {
+                    "type": "string"
+                },
+                "user_login": {
+                    "type": "string"
+                },
+                "user_role": {
+                    "type": "string"
+                }
+            }
+        },
+        "create.CollectionAccessSecretResponse": {
+            "type": "object",
+            "properties": {
+                "access_secret": {
+                    "type": "string"
+                },
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "create.PhotoAccessSecretResponse": {
+            "type": "object",
+            "properties": {
+                "access_secret": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "entity.AccessModifier": {
+            "type": "string",
+            "enum": [
+                "private",
+                "protected",
+                "public"
+            ],
+            "x-enum-varnames": [
+                "AccessModifierPrivate",
+                "AccessModifierProtected",
+                "AccessModifierPublic"
+            ]
+        },
+        "entity.UserRole": {
+            "type": "string",
+            "enum": [
+                "user",
+                "moderator",
+                "admin"
+            ],
+            "x-enum-varnames": [
+                "UserDefaultRole",
+                "UserModeratorRole",
+                "UserAdminRole"
+            ]
+        },
+        "healthcheck.HealthcheckResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "response.Response": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "service.AccessLinkRequest": {
+            "type": "object",
+            "required": [
+                "expires_duration"
+            ],
+            "properties": {
+                "expires_duration": {
+                    "type": "integer"
+                }
+            }
+        },
+        "service.CollectionInfo": {
+            "type": "object",
+            "required": [
+                "access_level"
+            ],
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "owner_login": {
+                    "type": "string"
+                },
+                "photos": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.PhotoSmallInfo"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                }
+            }
+        },
+        "service.PatchPhotoRequest": {
+            "type": "object",
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "took_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PatchUserRequest": {
+            "type": "object",
+            "properties": {
+                "collections_quota": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "photos_quota": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "user_role": {
+                    "enum": [
+                        "user",
+                        "moderator"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/entity.UserRole"
+                        }
+                    ]
+                }
+            }
+        },
+        "service.PhotoInfo": {
+            "type": "object",
+            "required": [
+                "access_level"
+            ],
+            "properties": {
+                "access_key": {
+                    "type": "string"
+                },
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "owner_login": {
+                    "type": "string"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/service.TagSmallInfo"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "took_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.PhotoSmallInfo": {
+            "type": "object",
+            "properties": {
+                "access_key": {
+                    "type": "string"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.SaveCollectionInputMetadata": {
+            "type": "object",
+            "required": [
+                "access_level"
+            ],
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "photo_uuids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                }
+            }
+        },
+        "service.SaveTagInput": {
+            "type": "object",
+            "required": [
+                "tag_name"
+            ],
+            "properties": {
+                "tag_description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "tag_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                }
+            }
+        },
+        "service.SimpleCollectionInfo": {
+            "type": "object",
+            "required": [
+                "access_level"
+            ],
+            "properties": {
+                "access_level": {
+                    "$ref": "#/definitions/entity.AccessModifier"
+                },
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 200
+                },
+                "owner_login": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string",
+                    "maxLength": 50
+                }
+            }
+        },
+        "service.TagInfo": {
+            "type": "object",
+            "properties": {
+                "tag_description": {
+                    "type": "string"
+                },
+                "tag_name": {
+                    "type": "string"
+                },
+                "tag_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.TagSmallInfo": {
+            "type": "object",
+            "properties": {
+                "tag_name": {
+                    "type": "string"
+                },
+                "tag_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UserAuthCredentials": {
+            "type": "object",
+            "required": [
+                "login"
+            ],
+            "properties": {
+                "login": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "service.UserData": {
+            "type": "object",
+            "required": [
+                "email",
+                "login",
+                "password"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "login": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 8
+                }
+            }
+        },
+        "service.UserVerifyCredentials": {
+            "type": "object",
+            "required": [
+                "login"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                }
+            }
+        },
+        "update.AddPhotoToCollectionRequest": {
+            "type": "object",
+            "required": [
+                "photo_uuid"
+            ],
+            "properties": {
+                "photo_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "update.AddPhotoToCollectionResponse": {
+            "type": "object",
+            "properties": {
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "update.Response": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "upload.CollecionCreateResponse": {
+            "type": "object",
+            "properties": {
+                "collection_uuid": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "upload.Response": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "photo_uuid": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                }
+            }
+        },
+        "upload.TagCreateResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                },
+                "tag_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "view.UserInfo": {
+            "type": "object",
+            "properties": {
+                "collections_quota": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "photos_quota": {
+                    "type": "integer"
+                },
+                "role": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                },
+                "user_login": {
+                    "type": "string"
+                },
+                "user_uuid": {
+                    "type": "string"
+                }
+            }
+        },
+        "view.UsersInfoResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "Some error description"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ok"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/view.UserInfo"
+                    }
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Format: \"Bearer \u003caccess_token\u003e\"",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

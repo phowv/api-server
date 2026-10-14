@@ -1,4 +1,4 @@
-FROM golang:1.25.0-alpine AS builder
+FROM golang:1.26.0-alpine AS builder
 
 RUN apk add --no-cache \
     gcc \
@@ -26,5 +26,7 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 
 EXPOSE 8080
+
+HEALTHCHECK CMD curl --fail http://localhost:8080/api/v1/health || exit 1
 
 CMD ["./main"]

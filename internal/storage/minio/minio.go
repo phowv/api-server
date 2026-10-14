@@ -26,7 +26,7 @@ func New(host string, port int, user string, password string, useSSL bool) (*Fil
 	endpoint := net.JoinHostPort(host, strconv.Itoa(port))
 
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds: credentials.NewStaticV4(user, password, ""),
+		Creds:  credentials.NewStaticV4(user, password, ""),
 		Secure: useSSL,
 	})
 
@@ -115,7 +115,7 @@ func (s *FileStorage) DeleteFile(ctx context.Context, bucketName string, objectN
 }
 
 func (fs *FileStorage) Ping(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 2 * time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	_, err := fs.cl.ListBuckets(ctx)
 	return err

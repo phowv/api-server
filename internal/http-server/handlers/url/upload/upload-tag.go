@@ -12,26 +12,37 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/go-playground/validator/v10"
+	vlpkg "github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
 type TagCreateResponse struct {
 	response.Response
-  TagUuid uuid.UUID `json:"tag_uuid"`
+	TagUuid uuid.UUID `json:"tag_uuid"`
 }
 
-func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc {
+// UploadTag creates a tag with a unique name.
+//
+//	@Summary		Create a tag
+//	@Tags			  tags
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			body		body service.SaveTagInput true	"tag_name (2-50, unique), tag_description (≤200)"
+//	@Success		201			{object}	upload.TagCreateResponse
+//	@Failure		400			{object}	response.Response	"invalid metadata / validation / tag with this name already exists"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		500			{object}	response.Response	"internal error"
+//	@Router			/tags [post]
+func UploadTag(lg *slog.Logger, validator *vlpkg.Validate, tagService *service.TagService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.upload.UploadTag"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		jsonMetadata := r.FormValue("metadata")
-
 		var tagInfo service.SaveTagInput
-		if err := json.Unmarshal([]byte(jsonMetadata), &tagInfo); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&tagInfo); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)
@@ -40,7 +51,14 @@ func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 		}
 
 		if err := validatorx.NewValidator().Struct(tagInfo); err != nil {
-			validateErr := err.(validator.ValidationErrors)
+			validateErr, ok := err.(vlpkg.ValidationErrors)
+			if !ok {
+				log.Error("unknown validation error", sl.Err(err))
+
+				render.Status(r, http.StatusBadRequest)
+				render.JSON(w, r, response.Error("validation error"))
+				return
+			}
 
 			log.Error("error validate request metadata", sl.Err(err))
 
@@ -72,7 +90,7 @@ func UploadTag(lg *slog.Logger, tagService *service.TagService) http.HandlerFunc
 		render.Status(r, http.StatusCreated)
 		render.JSON(w, r, TagCreateResponse{
 			Response: response.OK(),
-			TagUuid: tagUuid,
+			TagUuid:  tagUuid,
 		})
 	}
 }

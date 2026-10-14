@@ -2,15 +2,12 @@ package auth
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"photo-viewer-server/internal/lib/api/response"
 	"photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/logger/sl"
-	"photo-viewer-server/internal/lib/random"
 	"photo-viewer-server/internal/service"
 	"time"
 
@@ -20,104 +17,32 @@ import (
 	"github.com/google/uuid"
 )
 
-const accessTokenExpirationTime = 15 * time.Minute
-const refreshTokenExpirationTime = 3 * time.Hour
-
-type userInfoResponse struct {
+type UserInfoResponse struct {
 	Login string `json:"user_login"`
 	Email string `json:"user_email"`
+	Role  string `json:"user_role"`
 }
 
-func RegisterUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.RegisterUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userData service.UserData
-		if err := json.NewDecoder(r.Body).Decode(&userData); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userData.Login), slog.String("email", userData.Email))
-
-		_, err := userService.CreateUser(r.Context(), userData)
-
-		if err != nil {
-			log.Error("error create user", sl.Err(err))
-
-			if errors.Is(err, service.ErrUserExists) {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("error user already exists"))
-				return
-
-			} else if errors.Is(err, service.ErrUserPasswordTooShort) {
-				render.Status(r, http.StatusBadRequest)
-				render.JSON(w, r, response.Error("error user password too short, must be longer than 8 symbols"))
-				return
-			}
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("error register new user"))
-			return
-		}
-
-		render.Status(r, http.StatusCreated)
-		render.JSON(w, r, response.OK())
-	}
+type AccessTokenResponse struct {
+	response.Response
+	AccessToken string `json:"access_token"`
 }
 
-func LoginUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.LoginUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userCredentials service.UserAuthCredentials
-		if err := json.NewDecoder(r.Body).Decode(&userCredentials); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userCredentials.Login))
-
-		user, err := userService.AuthenticateUser(r.Context(), userCredentials)
-
-		if err != nil {
-			log.Error("failed to authenticate user", sl.Err(err))
-
-			duration, err := random.CryptoRandInt64(100, 1500)
-			if err != nil {
-				duration = 750
-			}
-			time.Sleep(time.Duration(duration) * time.Millisecond)
-
-			http.Error(w, "invalid credentials", http.StatusForbidden)	
-			return
-		}
-
-	  tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
-		if err != nil {
-			log.Error("failed to create jwt token pair", sl.Err(err))
-			
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("failed to create tokens"))
-			return
-		}
-
-		sendJwtTokens(w, tokens)
-	}
+type createJwtTokensResult struct {
+	tokenString   string
+	refreshCookie *http.Cookie
 }
 
+// GetMe returns the authenticated user's profile.
+//
+//	@Summary		Get current user
+//	@Tags			  auth
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Success		200			{object}	auth.UserInfoResponse	"user_login, user_email, user_role"
+//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
+//	@Failure		500			{object}	response.Response	"failed to get user info (incl. inactive user)"
+//	@Router			/auth/me [get]
 func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
@@ -125,7 +50,14 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
+		userUuid, ok := r.Context().Value("user_uuid").(uuid.UUID)
+		if !ok {
+			log.Error("failed to get user_uuid from context")
+
+			render.Status(r, http.StatusBadRequest)
+			render.JSON(w, r, response.Error("invalid user_uuid"))
+			return
+		}
 
 		log.Info("get user info", slog.Any("user_uuid", userUuid))
 
@@ -140,123 +72,24 @@ func GetMe(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
 		}
 
 		render.Status(r, http.StatusOK)
-		render.JSON(w, r, userInfoResponse{
+		render.JSON(w, r, UserInfoResponse{
 			Login: user.Login,
 			Email: user.Email,
+			Role:  user.Role,
 		})
 	}
-}
-
-func RefreshUser(lg *slog.Logger, apiPrefix string, jwtAccessSecret string, jwtRefreshSecret string, userService *service.UserService, isDevEnv bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.RefreshUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		cookie, err := r.Cookie("refresh_token")
-		if err != nil {
-			log.Debug("missing refresh token cookie")
-
-	    render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("missing authentication"))
-			return 
-		}
-
-		log.Info("parsed cookie refresh token")
-
-		refreshTokenString := cookie.Value
-		refreshClaims := &auth.RefreshClaims{}
-
-		refreshToken, err := jwt.ParseWithClaims(refreshTokenString, refreshClaims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(jwtRefreshSecret), nil
-		})
-
-		if err != nil || !refreshToken.Valid {
-			log.Debug("invalid refresh token")
-
-	    render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid token"))
-			return 
-		}
-
-		SessionUuid := refreshClaims.SessionUuid
-		userUuid := refreshClaims.UserUuid
-		
-		log.Debug("parsed user uuid", slog.Any("user_uuid", userUuid))
-
-		user, err := userService.AuthenticateSession(r.Context(), SessionUuid, userUuid, refreshTokenString)
-		if err != nil {
-			log.Error("failed to authenticate session", sl.Err(err))
-
-	    render.Status(r, http.StatusUnauthorized)
-			render.JSON(w, r, response.Error("invalid token"))
-			return 
-		}
-		log.Debug("success authenticate user session")
-
-		tokens, err := createJwtTokens(r.Context(), userService, user, apiPrefix, jwtAccessSecret, jwtRefreshSecret, isDevEnv)
-		if err != nil {
-			log.Error("failed to create jwt token pair", sl.Err(err))
-			
-			render.Status(r, http.StatusInternalServerError)
-			render.JSON(w, r, response.Error("failed to create tokens"))
-			return
-		}
-
-		sendJwtTokens(w, tokens)
-	}
-}
-
-func VerifyUser(lg *slog.Logger, userService *service.UserService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log := lg.With(
-			slog.String("op", "handlers.auth.VerifyUser"),
-			slog.String("request_id", middleware.GetReqID(r.Context())),
-		)
-
-		var userVerifyCredentials service.UserVerifyCredentials
-		if err := json.NewDecoder(r.Body).Decode(&userVerifyCredentials); err != nil {
-			log.Error("failed to decode metadata", sl.Err(err))
-
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, response.Error("invalid metadata"))
-			return
-		}
-
-		log.Debug("request metadata decoded", slog.String("login", userVerifyCredentials.Login))
-
-		err := userService.VerifyUser(r.Context(), userVerifyCredentials)
-		if err != nil {
-			log.Error("failed to verify user", sl.Err(err))
-
-			duration, err := random.CryptoRandInt64(100, 1500)
-			if err != nil {
-				duration = 750
-			}
-			time.Sleep(time.Duration(duration) * time.Millisecond)
-
-			http.Error(w, "invalid code", http.StatusForbidden)	
-			return
-		}
-
-		render.Status(r, http.StatusOK)
-		render.JSON(w, r, response.OK())
-	}
-}
-
-type createJwtTokensResult struct {
-	tokenString string
-	refreshCookie *http.Cookie
 }
 
 func createJwtTokens(
-	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, isDevEnv bool,
+	ctx context.Context, userService *service.UserService, user *service.User, apiPrefix string, jwtAccessSecret, jwtRefreshSecret string, authConfig *auth.AuthConfig,
 ) (*createJwtTokensResult, error) {
-	expirationTime := time.Now().Add(accessTokenExpirationTime)
+	expirationTime := time.Now().Add(authConfig.JwtAccessExpires)
+	sessionUuid := uuid.New()
+
 	claims := &auth.Claims{
-		UserUuid: user.UserUuid,
-		Role: user.Role,
+		UserUuid:    user.UserUuid,
+		Role:        user.Role,
+		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
@@ -268,11 +101,9 @@ func createJwtTokens(
 		return nil, fmt.Errorf("failed to create string access token: %w", err)
 	}
 
-	sessionUuid := uuid.New()
-
-	refreshExpirarionTime := time.Now().Add(refreshTokenExpirationTime)
+	refreshExpirarionTime := time.Now().Add(authConfig.JwtRefreshExpires)
 	refreshClaims := &auth.RefreshClaims{
-		UserUuid: user.UserUuid,
+		UserUuid:    user.UserUuid,
 		SessionUuid: sessionUuid,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(refreshExpirarionTime),
@@ -291,31 +122,31 @@ func createJwtTokens(
 	}
 
 	sameSite := http.SameSiteStrictMode
-	if isDevEnv {
+	if authConfig.IsDevEnv {
 		sameSite = http.SameSiteNoneMode
 	}
 
 	cookie := &http.Cookie{
-		Name: "refresh_token",
-		Value: refreshTokenString,
-		Path: apiPrefix + "/auth/refresh",
+		Name:     "refresh_token",
+		Value:    refreshTokenString,
+		Path:     apiPrefix + "/auth/refresh",
 		HttpOnly: true,
-		Secure: true,
-		Expires: refreshExpirarionTime,
+		Secure:   true,
+		Expires:  refreshExpirarionTime,
 		SameSite: sameSite,
 	}
 
 	return &createJwtTokensResult{
-		tokenString: tokenString,
+		tokenString:   tokenString,
 		refreshCookie: cookie,
 	}, nil
 }
 
-func sendJwtTokens(w http.ResponseWriter, tokens *createJwtTokensResult) {
+func sendJwtTokens(w http.ResponseWriter, r *http.Request, tokens *createJwtTokensResult) {
 	http.SetCookie(w, tokens.refreshCookie)
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"access_token": tokens.tokenString,
+	render.JSON(w, r, AccessTokenResponse{
+		Response:    response.OK(),
+		AccessToken: tokens.tokenString,
 	})
 }

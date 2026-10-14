@@ -1,3 +1,12 @@
+// @title Photo Viewer API
+// @version dev
+// @BasePath /api/v1
+// @schemes     http
+//
+// @securityDefinitions.apiKey BearerAuth
+// @in           header
+// @name         Authorization
+// @description  Format: "Bearer <access_token>"
 package main
 
 import (
@@ -5,43 +14,50 @@ import (
 	"net"
 	"net/http"
 	"os"
+	_ "photo-viewer-server/docs"
 	"photo-viewer-server/internal/config"
 	"photo-viewer-server/internal/http-server/handlers/auth"
+	"photo-viewer-server/internal/http-server/handlers/url/create"
 	"photo-viewer-server/internal/http-server/handlers/url/healthcheck"
 	"photo-viewer-server/internal/http-server/handlers/url/remove"
 	"photo-viewer-server/internal/http-server/handlers/url/update"
 	"photo-viewer-server/internal/http-server/handlers/url/upload"
 	"photo-viewer-server/internal/http-server/handlers/url/view"
+	adminmw "photo-viewer-server/internal/http-server/middleware/admin-mw"
 	emptytokenmw "photo-viewer-server/internal/http-server/middleware/empty-token-mw"
 	jwtmiddleware "photo-viewer-server/internal/http-server/middleware/jwt-middleware"
 	mwlogger "photo-viewer-server/internal/http-server/middleware/mw-logger"
 	omitemptyjwtmw "photo-viewer-server/internal/http-server/middleware/omitempty-jwt-mw"
 	ratelimitmw "photo-viewer-server/internal/http-server/middleware/rate-limit-mw"
+	libauth "photo-viewer-server/internal/lib/auth"
 	"photo-viewer-server/internal/lib/image"
+	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/lib/mail"
 	ratelimiter "photo-viewer-server/internal/lib/rate-limiter"
 	"photo-viewer-server/internal/lib/signer"
+	"photo-viewer-server/internal/lib/validatorx"
 	"photo-viewer-server/internal/service"
 	"photo-viewer-server/internal/storage/minio"
 	"photo-viewer-server/internal/storage/postrgesql"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-)
-
-const (
-	appEnvDev  = "dev"
-	appEnvProd = "prod"
+	swagger "github.com/swaggo/http-swagger"
 )
 
 func main() {
 	cfg := config.MustLoad()
 
-	isDevEnv := cfg.AppEnv == appEnvDev
-	fileAccessExpires := time.Hour
+	isDevEnv := cfg.AppEnv == config.AppEnvDev
+	authConfig := &libauth.AuthConfig{
+		IsDevEnv:          isDevEnv,
+		JwtAccessExpires:  cfg.JwtAccessExpires,
+		JwtRefreshExpires: cfg.JwtRefreshExpires,
+	}
 
 	log := setupLogger(cfg.AppEnv)
 
@@ -57,7 +73,7 @@ func main() {
 	)
 
 	if err != nil {
-		log.Error("failed init postrgesql")
+		log.Error("failed init postrgesql", sl.Err(err))
 		os.Exit(1)
 	}
 
@@ -70,11 +86,13 @@ func main() {
 
 	storage, err := minio.New(cfg.StorageHost, cfg.StoragePort, cfg.StorageUser, cfg.StoragePassword, false)
 	if err != nil {
-		log.Error("failed init minio storage")
+		log.Error("failed init minio storage", sl.Err(err))
 		os.Exit(1)
 	}
 
-	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, fileAccessExpires)
+	validator := validatorx.NewValidator()
+
+	keySigner := signer.NewKeySigner(cfg.KeySignerSecret, cfg.FileAccessExpires)
 
 	image.Initialize()
 
@@ -108,7 +126,13 @@ func main() {
 		photoRepository,
 	)
 
-	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{ storage, metadataStorage })
+	adminService := service.NewAdminService(
+		log,
+		userRepository,
+		txManager,
+	)
+
+	healthcheckService := service.NewHealthcheckService([]service.Healthchecker{storage, metadataStorage})
 
 	authRateLimit := 5
 	if isDevEnv {
@@ -116,10 +140,10 @@ func main() {
 	}
 
 	rateLimits := map[string]ratelimitmw.RateLimit{
-		"/api/v1/auth/login": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/login":    {Limit: authRateLimit, Window: time.Minute},
 		"/api/v1/auth/register": {Limit: authRateLimit, Window: time.Minute},
-		"/api/v1/auth/refresh": {Limit: authRateLimit, Window: time.Minute},
-		"/api/v1/auth/verify": {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/refresh":  {Limit: authRateLimit, Window: time.Minute},
+		"/api/v1/auth/verify":   {Limit: authRateLimit, Window: time.Minute},
 	}
 
 	rateLimiter := ratelimiter.NewInMemoryRateLimiter()
@@ -141,6 +165,19 @@ func main() {
 		MaxAge:           300,
 	}))
 
+	if isDevEnv {
+		swagUrlBuilder := strings.Builder{}
+		swagUrlBuilder.WriteString("http://")
+		swagUrlBuilder.WriteString(cfg.Host)
+		swagUrlBuilder.WriteByte(':')
+		swagUrlBuilder.WriteString(strconv.Itoa(cfg.Port))
+		swagUrlBuilder.WriteString("/swagger/doc.json")
+
+		router.Get("/swagger/*", swagger.Handler(
+			swagger.URL(swagUrlBuilder.String()),
+		))
+	}
+
 	router.Route("/api/v1", func(apiv1Router chi.Router) {
 		apiv1Router.Group(func(r chi.Router) {
 			r.Get("/health", healthcheck.Healthcheck(log, healthcheckService))
@@ -152,10 +189,10 @@ func main() {
 			r.Use(emptytokenmw.New(cfg.JwtAccessSecret))
 			r.Use(ratelimitmw.New(log, rateLimiter, rateLimits))
 
-			r.Post("/auth/register", auth.RegisterUser(log, userService))
-			r.Post("/auth/login", auth.LoginUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
-			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, isDevEnv))
-			r.Post("/auth/verify", auth.VerifyUser(log, userService))
+			r.Post("/auth/register", auth.RegisterUser(log, validator, userService))
+			r.Post("/auth/login", auth.LoginUser(log, validator, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, authConfig))
+			r.Post("/auth/refresh", auth.RefreshUser(log, "/api/v1", cfg.JwtAccessSecret, cfg.JwtRefreshSecret, userService, authConfig))
+			r.Post("/auth/verify", auth.VerifyUser(log, validator, userService))
 		})
 
 		apiv1Router.Group(func(r chi.Router) {
@@ -173,17 +210,32 @@ func main() {
 			r.Use(jwtmiddleware.New(cfg.JwtAccessSecret))
 
 			r.Get("/auth/me", auth.GetMe(log, userService))
+			r.Post("/auth/logout", auth.LogoutUser(log, userService))
 
-			r.Post("/photos", upload.UploadPhoto(log, photoService))
+			r.Post("/photos", upload.UploadPhoto(log, validator, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))
 
-			r.Post("/tags", upload.UploadTag(log, tagService))
+			r.Post("/photo/{photo_uuid}/secret", create.CreatePhotoAccessSecret(log, photoService))
+			r.Delete("/photo/{photo_uuid}/secret", remove.RemovePhotoAccessSecret(log, photoService))
 
-			r.Post("/collections", upload.UploadCollection(log, collectionService))
+			r.Post("/tags", upload.UploadTag(log, validator, tagService))
+
+			r.Post("/collections", upload.UploadCollection(log, validator, collectionService))
 			r.Post("/collection/{collection_uuid}/photos", update.AddPhotoToCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}/photo/{photo_uuid}", update.RemovePhotoFromCollection(log, collectionService))
 			r.Delete("/collection/{collection_uuid}", remove.RemoveCollection(log, collectionService))
+
+			r.Post("/collection/{collection_uuid}/secret", create.CreateCollectionAccessSecret(log, collectionService))
+			r.Delete("/collection/{collection_uuid}/secret", remove.RemoveCollectionAccessSecret(log, collectionService))
+		})
+
+		apiv1Router.Group(func(r chi.Router) {
+			r.Use(adminmw.New(cfg.JwtAccessSecret))
+
+			r.Get("/users", view.ViewUsers(log, adminService))
+			r.Patch("/users/{user_uuid}", update.UpdateUser(log, adminService))
+			r.Delete("/tags/{tag_uuid}", remove.RemoveTag(log, tagService))
 		})
 	})
 
@@ -207,11 +259,11 @@ func main() {
 func setupLogger(env string) *slog.Logger {
 	var log *slog.Logger
 	switch env {
-	case appEnvDev:
+	case config.AppEnvDev:
 		log = slog.New(
 			slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}),
 		)
-	case appEnvProd:
+	case config.AppEnvProd:
 		log = slog.New(
 			slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}),
 		)
@@ -220,7 +272,7 @@ func setupLogger(env string) *slog.Logger {
 	return log
 }
 
-func staticVerificationCodeGenerator(code string) func () (string, error) {
+func staticVerificationCodeGenerator(code string) func() (string, error) {
 	return func() (string, error) {
 		return code, nil
 	}

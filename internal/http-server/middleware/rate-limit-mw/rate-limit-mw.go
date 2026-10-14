@@ -18,7 +18,7 @@ type RateLimiter interface {
 }
 
 type RateLimit struct {
-	Limit int
+	Limit  int
 	Window time.Duration
 }
 
@@ -32,7 +32,7 @@ func New(lg *slog.Logger, limiter RateLimiter, limits map[string]RateLimit) func
 
 			rc := chi.RouteContext(r.Context())
 
-		 	var route string
+			var route string
 			if rc != nil {
 				route = rc.RoutePattern()
 			}
