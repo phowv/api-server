@@ -32,7 +32,7 @@ func (s *PhotoRepository) SavePhoto(ctx context.Context, photo *entity.Photo) (u
 		for i, tag := range photo.Tags {
 			photoTagEntities[i] = entity.PhotoTagEntity{
 				PhotoUuid: photo.PhotoUuid,
-				TagUuid:   tag.TagUuid,
+				TagUuid: tag.TagUuid,
 			}
 		}
 
@@ -90,6 +90,7 @@ func (s *PhotoRepository) GetPhotosByOwner(ctx context.Context, ownerUuid uuid.U
 	return photos, nil
 }
 
+
 func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Photo, error) {
 	var photos []entity.Photo
 
@@ -103,21 +104,17 @@ func (s *PhotoRepository) GetAllPhotosByOwner(ctx context.Context, ownerUuid uui
 }
 
 func (s *PhotoRepository) DeletePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID) error {
-	res := s.getDB(ctx).Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid)
+	err := s.getDB(ctx).Where("owner_uuid = ?", ownerUuid).Delete(entity.Photo{}, uuid).Error
 
-	if res.Error != nil {
-		return fmt.Errorf("error delete photo: %w", res.Error)
-	}
-
-	if res.RowsAffected == 0 {
-		return storage.ErrPhotoNotFound
+	if err != nil {
+		return fmt.Errorf("error delete photo: %w", err)
 	}
 
 	return nil
 }
 
 func (s *PhotoRepository) UpdatePhoto(ctx context.Context, uuid uuid.UUID, ownerUuid uuid.UUID, fields map[string]any) error {
-	res := s.getDB(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
+  res := s.getDB(ctx).Model(&entity.Photo{}).Where("photo_uuid = ?", uuid).Where("owner_uuid = ?", ownerUuid).Updates(fields)
 
 	if res.Error != nil {
 		if errors.Is(res.Error, gorm.ErrRecordNotFound) {
@@ -165,14 +162,10 @@ func (s *PhotoRepository) GetTag(ctx context.Context, tagUuid uuid.UUID) (*entit
 }
 
 func (s *PhotoRepository) DeleteTag(ctx context.Context, tagUuid uuid.UUID) error {
-	res := s.db.Delete(entity.Tag{}, tagUuid)
+	err := s.db.Delete(entity.Tag{}, tagUuid).Error
 
-	if res.Error != nil {
-		return fmt.Errorf("error delete tag: %w", res.Error)
-	}
-
-	if res.RowsAffected == 0 {
-		return storage.ErrTagNotFound
+	if err != nil {
+		return fmt.Errorf("error delete tag: %w", err)
 	}
 
 	return nil

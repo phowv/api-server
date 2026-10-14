@@ -96,8 +96,9 @@ func (s *AuthRepository) GetValidVerificationCodeByUserUuid(ctx context.Context,
 			return nil, storage.ErrVerificationCodeNotFound
 		}
 
-		return nil, fmt.Errorf("error get verification code: %w", res.Error)
+		return nil, fmt.Errorf("error get sessions: %w", res.Error)
 	}
 
 	return &verificationCode, nil
 }
+

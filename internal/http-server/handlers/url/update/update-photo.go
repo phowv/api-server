@@ -20,33 +20,20 @@ import (
 
 type Response struct {
 	response.Response
-	PhotoUuid uuid.UUID `json:"photo_uuid"`
+  PhotoUuid uuid.UUID `json:"photo_uuid"`
 }
 
-// UpdatePhoto patches photo metadata (title, description, access level, dates).
-//
-//	@Summary		Update photo metadata
-//	@Tags				photos
-//	@Accept			json
-//	@Produce		json
-//	@Security		BearerAuth
-//	@Param			photo_uuid	path		string	true	"Photo UUID"
-//	@Param			body		body	service.PatchPhotoRequest	true	"title (≤50), description (≤200), created_at, took_at, access_level (private|protected|public)"
-//	@Success		200			{object}	update.Response
-//	@Failure		400			{object}	response.Response	"invalid metadata / validation / invalid request"
-//	@Failure		401			{object}	response.Response	"token is empty / invalid token"
-//	@Failure		404			{object}	response.Response	"photo not found"
-//	@Failure		500			{object}	response.Response	"internal error"
-//	@Router			/photo/{photo_uuid} [patch]
 func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+return func(w http.ResponseWriter, r *http.Request) {
 		log := lg.With(
 			slog.String("op", "handlers.update.UpdatePhoto"),
 			slog.String("request_id", middleware.GetReqID(r.Context())),
 		)
 
-		var metadata service.PatchPhotoRequest
-		if err := json.NewDecoder(r.Body).Decode(&metadata); err != nil {
+		jsonMetadata := r.FormValue("metadata")
+
+		var metadata service.PhotoMetadata
+		if err := json.Unmarshal([]byte(jsonMetadata), &metadata); err != nil {
 			log.Error("failed to decode metadata", sl.Err(err))
 
 			render.Status(r, http.StatusBadRequest)
@@ -86,7 +73,7 @@ func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 		userUuid := r.Context().Value("user_uuid").(uuid.UUID)
 
-		err = photoService.UpdatePhotoInfo(r.Context(), photoUuid, &metadata, userUuid)
+		err = photoService.UpdatePhotoInfo(r.Context(), photoUuid, metadata, userUuid)
 
 		if err != nil {
 			if errors.Is(err, storage.ErrPhotoNotFound) {
@@ -111,7 +98,7 @@ func UpdatePhoto(lg *slog.Logger, photoService *service.PhotoService) http.Handl
 
 func responseOk(w http.ResponseWriter, r *http.Request, photoUuid uuid.UUID) {
 	render.JSON(w, r, Response{
-		Response:  response.OK(),
+		Response: response.OK(),
 		PhotoUuid: photoUuid,
 	})
 }
