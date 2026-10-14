@@ -101,6 +101,7 @@ type UserRepo interface {
 	GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
+	GetUnverifiedUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
 	ActivateUser(ctx context.Context, uuid uuid.UUID) error
 	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error

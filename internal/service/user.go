@@ -190,7 +190,7 @@ func (s *UserService) CreateUser(ctx context.Context, data UserData) (uuid.UUID,
 
 func (s *UserService) VerifyUser(ctx context.Context, userVerifyCredentials UserVerifyCredentials) error {
 	return s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		user, err := s.userRepo.GetUserByLogin(txCtx, userVerifyCredentials.Login)
+		user, err := s.userRepo.GetUnverifiedUserByLogin(txCtx, userVerifyCredentials.Login)
 
 		if err != nil {
 			return fmt.Errorf("error get user: %w", err)
