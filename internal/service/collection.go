@@ -8,22 +8,21 @@ import (
 	"photo-viewer-server/internal/lib/logger/sl"
 	"photo-viewer-server/internal/storage"
 	"photo-viewer-server/internal/storage/entity"
-	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
 type CollectionMetadata struct {
-	Title       string                `json:"title" validate:"max=50"`
-	Description string                `json:"description" validate:"max=200"`
+	Title string `json:"title" validate:"max=50"`
+	Description string `json:"description" validate:"max=200"`
 	AccessLevel entity.AccessModifier `json:"access_level" validate:"required,access_modifier"`
 }
 
 type SimpleCollectionInfo struct {
 	CollectionMetadata
 	CollectionUuid uuid.UUID `json:"collection_uuid"`
-	OwnerLogin     string    `json:"owner_login"`
+	OwnerLogin string `json:"owner_login"`
 }
 
 type CollectionInfo struct {
@@ -36,19 +35,14 @@ type SaveCollectionInputMetadata struct {
 	PhotoUuids []uuid.UUID `json:"photo_uuids"`
 }
 
-type CollectionAccessLinkSecret struct {
-	CollectionUuid uuid.UUID `json:"collection_uuid"`
-	AccessSecret   string    `json:"access_secret"`
-}
-
 type CollectionService struct {
-	log            *slog.Logger
+	log *slog.Logger
 	collectionRepo CollectionRepo
-	userRepo       UserRepo
-	txManager      storage.TxManager
-	accessRepo     AccessRepo
-	keySigner      PhotoFileAccessSigner
-	photoRepo      PhotoRepo
+	userRepo UserRepo
+	txManager storage.TxManager
+	accessRepo AccessRepo
+	keySigner PhotoKeySigner
+	photoRepo PhotoRepo
 }
 
 func NewCollectionService(
@@ -57,17 +51,17 @@ func NewCollectionService(
 	userRepo UserRepo,
 	txManager storage.TxManager,
 	accessRepo AccessRepo,
-	keySigner PhotoFileAccessSigner,
+	keySigner PhotoKeySigner,
 	photoRepo PhotoRepo,
 ) *CollectionService {
 	return &CollectionService{
-		log:            log,
+		log: log,
 		collectionRepo: collectionRepo,
-		userRepo:       userRepo,
-		txManager:      txManager,
-		accessRepo:     accessRepo,
-		keySigner:      keySigner,
-		photoRepo:      photoRepo,
+		userRepo: userRepo,
+		txManager: txManager,
+		accessRepo: accessRepo,
+		keySigner: keySigner,
+		photoRepo: photoRepo,
 	}
 }
 
@@ -100,11 +94,11 @@ func (s *CollectionService) SaveCollection(ctx context.Context, input *SaveColle
 		}
 
 		collection := entity.Collection{
-			OwnerUuid:   ownerUuid,
-			Title:       input.Title,
+			OwnerUuid: ownerUuid,
+			Title: input.Title,
 			Description: input.Description,
 			AccessLevel: input.AccessLevel,
-			Photos:      photos,
+			Photos: photos,
 		}
 
 		collectionUuid, err = s.collectionRepo.SaveCollection(txCtx, &collection)
@@ -155,12 +149,12 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 	isPermit, err := s.isCollectionPermit(ctx, collectionEntity)
 
 	if err != nil {
-		log.Error("failed to check collection permissions", sl.Err(err))
+		log.Error("failed to check photo permissions", sl.Err(err))
 		return nil, ErrCollectionIsNotPermitted
 	}
 
 	if !isPermit {
-		log.Info("collection is not permitted", slog.Any("collection_uuid", collectionUuid))
+		log.Info("photo is not permitted", slog.Any("collection_uuid", collectionUuid))
 		return nil, ErrCollectionIsNotPermitted
 	}
 
@@ -176,14 +170,14 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 		isPhotoPermit, err := s.isPhotoPermitInCollection(ctx, collectionEntity, &photoEntity)
 
 		if err != nil {
-			log.Error("failed to check collection permissions in collection", sl.Err(err))
+			log.Error("faild to check photo permissions in collection", sl.Err(err))
 			continue
 		}
 		if !isPhotoPermit {
-			log.Debug("photo is not permitted in collection")
+			log.Debug("photo is not permitted in coillection")
 			continue
 		}
-
+	
 		accessKey, err := s.keySigner.Sign(
 			photoEntity.PhotoUuid,
 			photoEntity.OwnerUuid,
@@ -202,9 +196,9 @@ func (s *CollectionService) GetCollection(ctx context.Context, collectionUuid uu
 		Photos: photosInfo,
 		SimpleCollectionInfo: SimpleCollectionInfo{
 			CollectionUuid: collectionEntity.CollectionUuid,
-			OwnerLogin:     user.Login,
+			OwnerLogin: user.Login,
 			CollectionMetadata: CollectionMetadata{
-				Title:       collectionEntity.Title,
+				Title: collectionEntity.Title,
 				Description: collectionEntity.Description,
 				AccessLevel: collectionEntity.AccessLevel,
 			},
@@ -280,14 +274,14 @@ func (s *CollectionService) GetCollections(ctx context.Context, ownerLogin strin
 		user, err := s.userRepo.GetUserByUuid(ctx, collectionEntity.OwnerUuid)
 		if err != nil {
 			log.Error("failed to get collection's owner", slog.Any("collection_uuid", collectionEntity.CollectionUuid), slog.Any("owner_uuid", collectionEntity.OwnerUuid))
-			continue
+			return nil, err
 		}
 
 		collections[i] = SimpleCollectionInfo{
 			CollectionUuid: collectionEntity.CollectionUuid,
-			OwnerLogin:     user.Login,
+			OwnerLogin: user.Login,
 			CollectionMetadata: CollectionMetadata{
-				Title:       collectionEntity.Title,
+				Title: collectionEntity.Title,
 				Description: collectionEntity.Description,
 				AccessLevel: collectionEntity.AccessLevel,
 			},
@@ -353,14 +347,10 @@ func (s *CollectionService) AddPhotoToCollection(ctx context.Context, collection
 		log.Error("failed to add photo to collection", sl.Err(err))
 
 		switch err {
-		case ErrCollectionNotFound:
-			return ErrCollectionNotFound
-		case ErrPhotoNotFound:
-			return ErrPhotoNotFound
-		case ErrCollectionActionIsNotPermitted:
-			return ErrCollectionActionIsNotPermitted
-		case ErrPhotoInCollectionAlreadyExists:
-			return ErrPhotoInCollectionAlreadyExists
+		case ErrCollectionNotFound: return ErrCollectionNotFound
+		case ErrPhotoNotFound: return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
+		case ErrPhotoInCollectionAlreadyExists: return ErrPhotoInCollectionAlreadyExists
 		}
 
 		return fmt.Errorf("failed to add photo to collection")
@@ -415,12 +405,9 @@ func (s *CollectionService) RemovePhotoFromCollection(ctx context.Context, colle
 		log.Error("failed to remove photo from collection", sl.Err(err))
 
 		switch err {
-		case ErrCollectionNotFound:
-			return ErrCollectionNotFound
-		case ErrPhotoNotFound:
-			return ErrPhotoNotFound
-		case ErrCollectionActionIsNotPermitted:
-			return ErrCollectionActionIsNotPermitted
+		case ErrCollectionNotFound: return ErrCollectionNotFound
+		case ErrPhotoNotFound: return ErrPhotoNotFound
+		case ErrCollectionActionIsNotPermitted: return ErrCollectionActionIsNotPermitted
 		}
 
 		return fmt.Errorf("failed to remove photo from collection")
@@ -488,117 +475,6 @@ func (s *CollectionService) DeleteCollection(ctx context.Context, collectionUuid
 	return nil
 }
 
-func (s *CollectionService) GenerateCollectionAccessSecret(ctx context.Context, request *AccessLinkRequest, collectionUuid, userUuid uuid.UUID) (*CollectionAccessLinkSecret, error) {
-	log := s.log.With(
-		slog.String("op", "service.GenerateCollectionAccessSecret"),
-		slog.String("request_id", middleware.GetReqID(ctx)),
-	)
-
-	var res CollectionAccessLinkSecret
-	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		collectionEntity, err := s.collectionRepo.GetCollection(txCtx, collectionUuid)
-		if err != nil {
-			if errors.Is(err, storage.ErrCollectionNotFound) {
-				log.Error("photo not found", slog.Any("collection_uuid", collectionUuid))
-				return ErrCollectionNotFound
-			}
-
-			log.Error("error get collection", sl.Err(err))
-			return fmt.Errorf("error get collection: %w", err)
-		}
-
-		if collectionEntity.OwnerUuid != userUuid {
-			return ErrForbidden
-		}
-
-		token, err := newAccessSecret()
-		if err != nil {
-			return fmt.Errorf("failed to generate access token: %w", err)
-		}
-
-		hashToken, err := hashToken(token)
-		if err != nil {
-			return fmt.Errorf("failed to hash token")
-		}
-
-		accessLink := &entity.CollectionAccessLink{
-			CollectionUuid: collectionUuid,
-			HashCode:       hashToken,
-			IsRevoked:      false,
-			CreatedAt:      time.Now(),
-			ExpiresAt:      time.Now().Add(request.ExpiresDuration),
-		}
-
-		err = s.accessRepo.SaveCollectionAccessLink(txCtx, accessLink)
-		if err != nil {
-			if errors.Is(err, storage.ErrAccessLinkAlreadyExists) {
-				return ErrAccessLinkAlreadyExists
-			}
-
-			return fmt.Errorf("failed to save access link: %w", err)
-		}
-
-		res.AccessSecret = token
-		res.CollectionUuid = collectionUuid
-
-		return nil
-	})
-
-	if err != nil {
-		log.Error("failed to transact access link", sl.Err(err))
-		if errors.Is(err, ErrCollectionNotFound) || errors.Is(err, ErrAccessLinkAlreadyExists) || errors.Is(err, ErrForbidden) {
-			return nil, err
-		}
-		return nil, fmt.Errorf("failed to transact access link")
-	}
-
-	return &res, nil
-}
-
-func (s *CollectionService) DeleteCollectionAccessSecret(ctx context.Context, collectionUuid, userUuid uuid.UUID) error {
-	log := s.log.With(
-		slog.String("op", "service.DeleteCollectionAccessSecret"),
-		slog.String("request_id", middleware.GetReqID(ctx)),
-	)
-
-	err := s.txManager.WithTransaction(ctx, func(txCtx context.Context) error {
-		collectionEntity, err := s.collectionRepo.GetCollection(txCtx, collectionUuid)
-		if err != nil {
-			if errors.Is(err, storage.ErrCollectionNotFound) {
-				log.Error("photo not found", slog.Any("collection_uuid", collectionUuid))
-				return ErrCollectionNotFound
-			}
-
-			log.Error("error get collection", sl.Err(err))
-			return fmt.Errorf("error get collection: %w", err)
-		}
-		if collectionEntity.OwnerUuid != userUuid {
-			return ErrForbidden
-		}
-
-		err = s.accessRepo.DeleteAccessLinkByCollectionUuid(txCtx, collectionUuid)
-		if err != nil {
-			if errors.Is(err, storage.ErrAccessLinkNotFound) {
-				return ErrAccessLinkNotFound
-			}
-			return fmt.Errorf("failed to delete collection access link: %w", err)
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		log.Error("failed to delete access link", sl.Err(err))
-		if errors.Is(err, ErrAccessLinkNotFound) || errors.Is(err, ErrCollectionNotFound) || errors.Is(err, ErrForbidden) {
-			return err
-		}
-
-		return fmt.Errorf("failed to delete access link")
-	}
-
-	return nil
-}
-
 func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, collection *entity.Collection, photo *entity.Photo) (bool, error) {
 	log := s.log.With(
 		slog.String("op", "service.isPhotoPermitInCollection"),
@@ -642,10 +518,10 @@ func (s *CollectionService) isPhotoPermitInCollection(ctx context.Context, colle
 		return false, nil
 	}
 
-	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierProtected) == 0 &&
-		entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierProtected) == 0 {
+	if entity.CompareAccessLevels(photo.AccessLevel, entity.AccessModifierProtected)== 0 &&
+	   entity.CompareAccessLevels(collection.AccessLevel, entity.AccessModifierProtected) == 0 {
 		return true, nil
-	}
+	}		
 
 	log.Error("photo in collection access denied")
 	return false, nil
@@ -707,10 +583,7 @@ func (s *CollectionService) isCollectionPermit(ctx context.Context, collection *
 			log.Error("failed to get access link", sl.Err(err))
 			return false, fmt.Errorf("failed to get access link: %w", err)
 		}
-		if compareTokens(accessKey, accessLink.HashCode) {
-			if accessLink.IsRevoked {
-				return false, nil
-			}
+		if comparePasswords(accessKey, accessLink.HashCode) {
 			return true, nil
 		}
 	}
@@ -765,7 +638,7 @@ func (s *CollectionService) isCollectionPermitToAdd(ctx context.Context, collect
 
 func (s *CollectionService) isCollectionPermitToRemove(ctx context.Context, collection *entity.Collection) (bool, error) {
 	log := s.log.With(
-		slog.String("op", "service.isCollectionPermitToRemove"),
+		slog.String("op", "service.isCollectionPermitToAdd"),
 		slog.String("request_id", middleware.GetReqID(ctx)),
 	)
 
@@ -786,3 +659,4 @@ func (s *CollectionService) isCollectionPermitToRemove(ctx context.Context, coll
 	log.Error("collection access denied", slog.Any("collection_uuid", collection.CollectionUuid))
 	return false, nil
 }
+
