@@ -89,7 +89,7 @@ type CollectionRepo interface {
 	GetCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
 
 	GetAllPermittedCollections(ctx context.Context, userUuid uuid.UUID) ([]entity.Collection, error)
-	GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error)
+	GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error) // TODO: change interface to just get self collections
 
 	DeleteCollection(ctx context.Context, collectionUuid, ownerUuid uuid.UUID) error
 	AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error
