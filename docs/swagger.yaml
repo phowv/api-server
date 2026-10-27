@@ -894,6 +894,42 @@ paths:
       summary: Healthcheck
       tags:
       - health
+  /me/collections:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.SimpleCollectionInfo'
+            type: array
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: List self and permitted collections
+      tags:
+      - collections
+  /me/photos:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/service.PhotoInfo'
+            type: array
+        "500":
+          description: internal error
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: List self photos
+      tags:
+      - photos
   /photo/{photo_uuid}:
     delete:
       parameters:

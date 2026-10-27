@@ -89,7 +89,7 @@ type CollectionRepo interface {
 	GetCollectionsByOwner(ctx context.Context, ownerUuid uuid.UUID) ([]entity.Collection, error)
 
 	GetAllPermittedCollections(ctx context.Context, userUuid uuid.UUID) ([]entity.Collection, error)
-	GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error)
+	GetAllPermittedCollectionsByOwner(ctx context.Context, userUuid, ownerUuid uuid.UUID) ([]entity.Collection, error) // TODO: change interface to just get self collections
 
 	DeleteCollection(ctx context.Context, collectionUuid, ownerUuid uuid.UUID) error
 	AddPhotoToCollection(ctx context.Context, collectionUuid, photoUuid uuid.UUID) error
@@ -101,6 +101,7 @@ type UserRepo interface {
 	GetUserByUuid(ctx context.Context, uuid uuid.UUID) (*entity.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*entity.User, error)
 	GetUserByLogin(ctx context.Context, login string) (*entity.User, error)
+	GetUnverifiedUserByLogin(ctx context.Context, login string) (*entity.User, error)
 	DeleteUser(ctx context.Context, uuid uuid.UUID) error
 	ActivateUser(ctx context.Context, uuid uuid.UUID) error
 	DecrementPhotosQuotaByUuid(ctx context.Context, uuid uuid.UUID) error

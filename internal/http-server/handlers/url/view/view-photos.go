@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 )
 
-// ViewPhotos lists photos. Anonymous and non-owner requests get only public photos; the owner gets all of theirs.
+// ViewSelfPhotos lists photos. Get only public photos.
 //
 //	@Summary		List photos
 //	@Tags				photos

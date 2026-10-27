@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 )
 
-// ViewCollections lists collections visible to the caller (public, own or permitted).
+// ViewCollections lists public collections.
 //
 //	@Summary		List collections
 //	@Tags				collections

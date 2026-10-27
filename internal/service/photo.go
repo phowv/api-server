@@ -310,11 +310,6 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 		log.Debug("getting photos list", slog.Any("request_user_uuid", userUuid), slog.Any("user_uuid", user.UserUuid))
 
 		if ok {
-			if userUuid == user.UserUuid {
-				log.Debug("get all photos for user", slog.Any("user_uuid", userUuid))
-				photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, user.UserUuid)
-			}
-		} else {
 			photoEnities, err = s.photoRepo.GetPhotosByOwner(ctx, user.UserUuid)
 		}
 	}
@@ -325,48 +320,35 @@ func (s *PhotoService) GetPhotos(ctx context.Context, ownerLogin string) ([]Phot
 		return nil, fmt.Errorf("failed to get all photos: %w", err)
 	}
 
-	photos := make([]PhotoInfo, len(photoEnities))
+	return s.photoEntitiesToPhotoInfo(ctx, log, photoEnities), nil
+}
 
-	for i, photoEntity := range photoEnities {
-		user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
-		if err != nil {
-			log.Error("failed to get photo owner", sl.Err(err), slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
-			continue
-		}
+func (s *PhotoService) GetSelfPhotos(ctx context.Context) ([]PhotoInfo, error) {
+	log := s.log.With(
+		slog.String("op", "service.GetSelfPhotos"),
+		slog.String("request_id", middleware.GetReqID(ctx)),
+	)
 
-		photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
+	var photoEnities []entity.Photo
+	var err error
 
-		for i, photoEntityTag := range photoEntity.Tags {
-			photoTags[i] = TagSmallInfo{
-				TagUuid: photoEntityTag.TagUuid,
-				TagName: photoEntityTag.Name,
-			}
-		}
+	requestUserUuid := ctx.Value("user_uuid")
+	userUuid, ok := requestUserUuid.(uuid.UUID)
 
-		accessKey, err := s.keySigner.Sign(
-			photoEntity.PhotoUuid,
-			photoEntity.OwnerUuid,
-			photoEntity.RawFilename,
-			photoEntity.MediumFilename,
-			photoEntity.SmallFilename,
-		)
+	log.Debug("getting self photos list", slog.Any("request_user_uuid", userUuid), slog.Any("user_uuid", userUuid))
 
-		photos[i] = PhotoInfo{
-			PhotoUuid:  photoEntity.PhotoUuid,
-			OwnerLogin: user.Login,
-			Tags:       photoTags,
-			AccessKey:  accessKey,
-			PhotoMetadata: PhotoMetadata{
-				Title:       photoEntity.Title,
-				Description: photoEntity.Description,
-				CreatedAt:   photoEntity.CreatedDate,
-				TookAt:      photoEntity.TookAt,
-				AccessLevel: photoEntity.AccessLevel,
-			},
-		}
+	if ok {
+		log.Debug("get all photos for user", slog.Any("user_uuid", userUuid))
+		photoEnities, err = s.photoRepo.GetAllPhotosByOwner(ctx, userUuid)
 	}
 
-	return photos, nil
+	if err != nil {
+		log.Error("failed to get all photos", sl.Err(err))
+
+		return nil, fmt.Errorf("failed to get all photos: %w", err)
+	}
+
+	return s.photoEntitiesToPhotoInfo(ctx, log, photoEnities), nil
 }
 
 func (s *PhotoService) GetPhotoFile(ctx context.Context, photoUuid uuid.UUID, accessKey string, photoSize StoredPhotoType) ([]byte, error) {
@@ -435,38 +417,7 @@ func (s *PhotoService) GetPhotoInfo(ctx context.Context, photoUuid uuid.UUID) (*
 		return nil, err
 	}
 
-	accessKey, err := s.keySigner.Sign(
-		photoEntity.PhotoUuid,
-		photoEntity.OwnerUuid,
-		photoEntity.RawFilename,
-		photoEntity.MediumFilename,
-		photoEntity.SmallFilename,
-	)
-
-	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
-
-	for i, photoEntityTag := range photoEntity.Tags {
-		photoTags[i] = TagSmallInfo{
-			TagUuid: photoEntityTag.TagUuid,
-			TagName: photoEntityTag.Name,
-		}
-	}
-
-	photoInfo := PhotoInfo{
-		PhotoUuid:  photoEntity.PhotoUuid,
-		OwnerLogin: user.Login,
-		Tags:       photoTags,
-		AccessKey:  accessKey,
-		PhotoMetadata: PhotoMetadata{
-			Title:       photoEntity.Title,
-			Description: photoEntity.Description,
-			CreatedAt:   photoEntity.CreatedDate,
-			TookAt:      photoEntity.TookAt,
-			AccessLevel: photoEntity.AccessLevel,
-		},
-	}
-
-	return &photoInfo, nil
+	return s.photoEntityToPhotoInfo(user.Login, photoEntity)
 }
 
 func (s *PhotoService) DeletePhoto(ctx context.Context, photoUuid uuid.UUID, ownerUuid uuid.UUID) error {
@@ -780,4 +731,63 @@ func newAccessSecret() (string, error) {
 	}
 
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func (s *PhotoService) photoEntitiesToPhotoInfo(ctx context.Context, log *slog.Logger, photoEnities []entity.Photo) []PhotoInfo {
+	photos := make([]PhotoInfo, len(photoEnities)) // TODO: fix much allocations with memory pool
+
+	for i, photoEntity := range photoEnities {
+		user, err := s.userRepo.GetUserByUuid(ctx, photoEntity.OwnerUuid)
+		if err != nil {
+			log.Error("failed to get photo owner", sl.Err(err), slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+			continue
+		}
+
+		photo, err := s.photoEntityToPhotoInfo(user.Login, &photoEnities[i])
+		if err != nil {
+			log.Error("error convert photo entity to photo info", sl.Err(err), slog.Any("photo_uuid", photoEntity.PhotoUuid), slog.Any("owner_uuid", photoEntity.OwnerUuid))
+			continue
+		}
+
+		photos[i] = *photo
+
+	}
+	return photos
+}
+
+func (s *PhotoService) photoEntityToPhotoInfo(userLogin string, photoEntity *entity.Photo) (*PhotoInfo, error) {
+	accessKey, err := s.keySigner.Sign(
+		photoEntity.PhotoUuid,
+		photoEntity.OwnerUuid,
+		photoEntity.RawFilename,
+		photoEntity.MediumFilename,
+		photoEntity.SmallFilename,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign access key: %w", err)
+	}
+
+	photoTags := make([]TagSmallInfo, len(photoEntity.Tags))
+
+	for i, photoEntityTag := range photoEntity.Tags {
+		photoTags[i] = TagSmallInfo{
+			TagUuid: photoEntityTag.TagUuid,
+			TagName: photoEntityTag.Name,
+		}
+	}
+
+	photoInfo := &PhotoInfo{
+		PhotoUuid:  photoEntity.PhotoUuid,
+		OwnerLogin: userLogin,
+		Tags:       photoTags,
+		AccessKey:  accessKey,
+		PhotoMetadata: PhotoMetadata{
+			Title:       photoEntity.Title,
+			Description: photoEntity.Description,
+			CreatedAt:   photoEntity.CreatedDate,
+			TookAt:      photoEntity.TookAt,
+			AccessLevel: photoEntity.AccessLevel,
+		},
+	}
+	return photoInfo, nil
 }

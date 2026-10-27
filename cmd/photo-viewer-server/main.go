@@ -212,6 +212,9 @@ func main() {
 			r.Get("/auth/me", auth.GetMe(log, userService))
 			r.Post("/auth/logout", auth.LogoutUser(log, userService))
 
+			r.Get("/me/photos", view.ViewSelfPhotos(log, photoService))
+			r.Get("/me/collections", view.ViewSelfCollections(log, collectionService))
+
 			r.Post("/photos", upload.UploadPhoto(log, validator, photoService))
 			r.Delete("/photo/{photo_uuid}", remove.RemovePhoto(log, photoService))
 			r.Patch("/photo/{photo_uuid}", update.UpdatePhoto(log, photoService))

@@ -73,6 +73,22 @@ func (s *UserRepository) GetUserByEmail(ctx context.Context, email string) (*ent
 	return &user, nil
 }
 
+func (s *UserRepository) GetUnverifiedUserByLogin(ctx context.Context, login string) (*entity.User, error) {
+	var user entity.User
+
+	err := s.getDB(ctx).Where("login = ?", login).Where("is_active = ?", false).First(&user).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, storage.ErrUserNotFound
+		}
+
+		return nil, fmt.Errorf("error get user by login: %w", err)
+	}
+
+	return &user, nil
+}
+
 func (s *UserRepository) GetUserByLogin(ctx context.Context, login string) (*entity.User, error) {
 	var user entity.User
 
